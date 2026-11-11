@@ -44,14 +44,21 @@ def _mtime(name: str) -> float:
     return path.stat().st_mtime if path.exists() else 0.0
 
 
+VARIANTS = {"full": "model_bundle.json", "compact": "model_bundle_compact.json"}  # compact: scripts/compact_model.py
+
+
 @st.cache_resource
-def _bundle(mtime: float) -> dict:
-    return load_bundle()
+def _bundle(name: str, mtime: float) -> dict:
+    return load_bundle(PROCESSED / "models" / name)
 
 
-def bundle() -> dict:
-    """The trained model; reloaded automatically when train_models.py rewrites it."""
-    return _bundle(_mtime("model_bundle.json"))
+def bundle(variant: str = "full") -> dict:
+    """A trained model; reloaded automatically when its file is rewritten."""
+    return _bundle(VARIANTS[variant], _mtime(VARIANTS[variant]))
+
+
+def has_variant(variant: str) -> bool:
+    return (PROCESSED / "models" / VARIANTS[variant]).exists()
 
 
 @st.cache_resource
@@ -66,12 +73,17 @@ def theme_names() -> dict[str, dict]:
     return _theme_names((_mtime("model_bundle.json"), _mtime("theme_names.json")))
 
 
-def theme_title(t: str) -> str:
+def theme_title(t: str, b: dict | None = None) -> str:
+    """Theme name: the bundle's own name (compact model), else the DeepSeek name, else the central question."""
+    if b and b["themes"][t].get("name"):
+        return b["themes"][t]["name"]
     named = theme_names().get(t)
     return named["name"] if named else bundle()["themes"][t]["label"]
 
 
-def theme_description(t: str) -> str:
+def theme_description(t: str, b: dict | None = None) -> str:
+    if b and b["themes"][t].get("name"):
+        return b["themes"][t].get("description", "")
     named = theme_names().get(t)
     return named["description"] if named else ""
 
@@ -101,15 +113,27 @@ def fmt_x(lift: float) -> str:
 # Tab 1: evaluate a post
 
 
+def variant_label(variant: str) -> str:
+    b = bundle(variant)
+    acc = b["metrics"]["linear"]["test"]["pairwise_accuracy"]
+    kind = "Full" if variant == "full" else "Compact"
+    return f"{kind}: {len(linear_features(b))} questions · test {acc:.1%}"
+
+
 def evaluate_tab() -> None:
-    b = bundle()
+    st.subheader("Evaluate a draft post")
+    variants = ["full"] + (["compact"] if has_variant("compact") else [])
+    variant = st.radio("Model", variants, format_func=variant_label, horizontal=True,
+                       help="Full: each theme is the average of all its questions. Compact: each theme is measured by "
+                            "its 2 most representative questions only. Cheaper and easier to read, about 1 point "
+                            "less accurate.")
+    b = bundle(variant)
     questions = {f["id"]: f["question"] for f in b["features"]}
     used = {t: v for t, v in b.get("themes", {}).items() if t in b["linear"]["coef"]}  # themes the model uses
-    questions.update({t: theme_title(t) for t in used})
+    questions.update({t: theme_title(t, b) for t in used})
     ask = linear_features(b)  # only the questions those themes need
     m = b["metrics"]
 
-    st.subheader("Evaluate a draft post")
     st.caption(
         f"The linear model uses {len(b['linear']['coef'])} content themes. Jev answers the {len(ask)} yes/no "
         f"questions behind them (about ${len(ask) * judge.USD_PER_QUESTION:.4f} per post), and the model turns "
@@ -138,6 +162,12 @@ def evaluate_tab() -> None:
     if not result:
         return
     p_yes = {r["feature_id"]: r["p_yes"] for r in result["rows"]}
+    missing = [f for f in ask if f["id"] not in p_yes]
+    if missing:  # evaluated with the compact model, then switched to full
+        st.info(f"This post was evaluated with fewer questions. Click **Evaluate with Jev** to ask the "
+                f"{len(missing)} missing ones for this model.")
+        return
+    p_yes = {f["id"]: p_yes[f["id"]] for f in ask}  # the full model's answers also cover the compact one
     row = build_row(b, p_yes, "text", result["text"])
     lin_pred, contrib = predict_linear(b, row)
 
@@ -178,9 +208,9 @@ def evaluate_tab() -> None:
 
     with st.expander(f"How this post scored on the {len(used)} themes"):
         for t, v in used.items():
-            st.markdown(f"**{theme_title(t)}** — this post: **{row[t]:.0%}** of the checklist "
+            st.markdown(f"**{theme_title(t, b)}** — this post: **{row[t]:.0%}** of the checklist "
                         f"(typical post {v['q25']:.0%}–{v['q75']:.0%})")
-            st.caption(theme_description(t))
+            st.caption(theme_description(t, b))
             st.markdown("\n".join(f"- {'✅' if p_yes.get(f, 0) >= 0.5 else '▫️'} {q} ({p_yes.get(f, float('nan')):.2f})"
                                     for f, q in zip(v["members"], v["member_questions"])))
 
@@ -256,6 +286,7 @@ def pipeline_tab() -> None:
 
     baselines_section(data)
     learning_curve_section()
+    question_budget_section()
     themes_section()
 
 
@@ -331,7 +362,8 @@ def learning_curve_section() -> None:
                 axis=alt.Axis(values=sorted(df["train_authors"].unique().tolist()))),
         color=alt.Color("model:N", title=None, legend=alt.Legend(orient="bottom", columns=2, labelLimit=320)))
     band = base.mark_area(opacity=0.12).encode(y=alt.Y("low:Q", scale=alt.Scale(zero=False),
-                                                       title="Test pairwise accuracy"), y2="high:Q")
+                                                       title="Test pairwise accuracy"), y2="high:Q",
+                                               color=alt.Color("model:N", legend=None))
     line = base.mark_line(point=True).encode(
         y="mean:Q",
         tooltip=["model", "train_authors", alt.Tooltip("mean:Q", format=".3f"), alt.Tooltip("sd:Q", format=".3f"),
@@ -342,6 +374,58 @@ def learning_curve_section() -> None:
         f"settings re-tuned) and scores it on the same {lc['test_authors']} test authors ({lc['test_posts']:,} posts). "
         "Smaller sizes are averaged over 5 random samples; the band is ±1 standard deviation across them. "
         "The rightmost point uses every training author once.")
+
+
+def question_budget_section() -> None:
+    qb = read_json(PROCESSED / "models" / "question_budget.json")
+    if not qb:
+        return
+    st.markdown("#### How many questions does Jev need to answer?")
+    rows = pd.DataFrame(qb["rows"])
+    curves = rows[rows["method"] != "all_ridge"].copy()
+    curves["series"] = curves["method"].map({"themes": "7 themes, top questions of each",
+                                             "single": "Single questions, best added one at a time"})
+    curves["point"] = curves.apply(
+        lambda r: f"{r['per_theme']} per theme" if r["method"] == "themes" else f"{int(r['questions'])} questions", axis=1)
+    x = alt.X("questions:Q", title="Jev questions per post (log scale)", scale=alt.Scale(type="log"),
+              axis=alt.Axis(values=[1, 2, 5, 7, 10, 14, 21, 34, 86, 147]))
+    top = max(rows["test"].max(), 0.0)
+    y = alt.Y("test:Q", title="Test pairwise accuracy",
+              scale=alt.Scale(domain=[float(rows["test"].min()) - 0.005, float(top) + 0.01]))
+    series = ["7 themes, top questions of each", "Single questions, best added one at a time"]
+    lines = alt.Chart(curves).mark_line(point=True).encode(
+        x=x, y=y, color=alt.Color("series:N", title=None, scale=alt.Scale(domain=series, range=["#2e7d32", "#ef6c00"]),
+                                  legend=alt.Legend(orient="bottom", labelLimit=320)),
+        tooltip=["series", "point", "questions", alt.Tooltip("test:Q", format=".3f"), alt.Tooltip("cv:Q", format=".3f")])
+    layers = [lines]
+    marks = curves[(curves["method"] == "themes") & curves["per_theme"].isin([qb["per_theme_compact"], "all"])].copy()
+    marks["label"] = marks["per_theme"].map(lambda m: "Full model" if m == "all" else "Compact model")
+    layers.append(alt.Chart(marks).mark_text(dy=-12, fontWeight="bold", color="#2e7d32").encode(x=x, y=y, text="label:N"))
+    ridge = rows[rows["method"] == "all_ridge"]
+    if len(ridge):
+        r = ridge.iloc[0]
+        layers.append(alt.Chart(pd.DataFrame({"y": [r["test"]], "label": [f"All {int(r['questions'])} questions (ridge)"]}))
+                      .mark_rule(strokeDash=[4, 4], color="#888").encode(y="y:Q", tooltip=["label", alt.Tooltip("y:Q", format=".3f")]))
+        layers.append(alt.Chart(pd.DataFrame({"y": [r["test"]], "x": [1], "label": [f"all {int(r['questions'])} questions"]}))
+                      .mark_text(align="left", dy=-7, color="#888").encode(x=alt.X("x:Q", scale=alt.Scale(type="log")), y="y:Q", text="label:N"))
+    st.altair_chart(alt.layer(*layers).properties(height=320), use_container_width=True)
+    st.caption(
+        f"Every point is trained on all training authors and scored on the same {qb['test_authors']} test authors. "
+        "Compact: each of the 7 themes is measured by its 2 questions that best track the full theme score, chosen on "
+        "training posts. About 10–15 questions keep most of the accuracy (~0.60 vs 0.613); averaging two questions per "
+        "theme beats picking 14 single questions. Dashed line: ridge on all questions. The single-question picks are "
+        "not stable: rerun on other training folds, only about 5 of 10 are always chosen.")
+
+    if has_variant("compact"):
+        cb = bundle("compact")
+        with st.expander(f"The compact model's {len(cb['themes'])} themes and {len(linear_features(cb))} questions"):
+            st.caption("With only 2 questions, a theme can mean something narrower than its full version, so each "
+                       "compact theme is renamed from its own questions (full theme in brackets).")
+            for t, v in sorted(cb["themes"].items(), key=lambda kv: -kv[1]["coef"]):
+                arrow = "helps" if v["coef"] > 0 else "hurts"
+                st.markdown(f"**{v['name']}** ({v.get('full_name', '')}) — typical effect "
+                            f"**{v['realistic_x']:.2f}×** ({arrow})\n"
+                            + "\n".join(f"- {q}" for q in v["member_questions"]))
 
 
 def themes_section() -> None:

@@ -65,6 +65,7 @@ linkedin-analysis/
 | 4. Feature judging (Jev) | done: every labeled post, 147 general features ($11.24) | `uv run python scripts/judge_features.py --bank data/processed/features/feature_bank_general.json --split train --max-cost 13 --out data/processed/judgments_full_train` (and `--split test --max-cost 3.5 --out data/processed/judgments_full_test`) | `data/processed/judgments_full_*/features.parquet` |
 | 5. Theme model / RuleFit | done | `uv run python scripts/train_models.py --judgments data/processed/judgments_full_train data/processed/judgments_full_test --bank data/processed/features/feature_bank_general.json --themes 15`, then `scripts/name_themes.py` | `data/processed/models/` |
 | 5b. Baselines and learning curve | done | `scripts/compare_baselines.py --train data/processed/judgments_full_train --test data/processed/judgments_full_test`; `scripts/learning_curve.py --judgments` (same two folders) | `models/baselines.json`, `models/learning_curve.json` |
+| 5c. Compact model (14 questions) | done | `scripts/compact_model.py --judgments` (same two folders) | `models/model_bundle_compact.json`, `models/question_budget.json` |
 | 6. Dashboard | done | `uv run streamlit run app/dashboard.py` | http://localhost:8501 |
 
 Results are in [docs/models.md](docs/models.md). The models use content

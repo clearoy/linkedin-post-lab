@@ -1,9 +1,13 @@
-# Internal data: do not commit (see README)
-data/
+# Internal data: never commit (see README). Keep the folder structure only.
+data/**
+!data/raw/
+!data/processed/
+!data/*/.gitkeep
 *.parquet
 *.npy
 
 .DS_Store
 __pycache__/
+.pytest_cache/
 .ipynb_checkpoints/
 .venv/

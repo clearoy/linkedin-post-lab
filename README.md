@@ -23,11 +23,29 @@ A dataset of public LinkedIn posts, set up for studying which posts take off and
 **Collection:** Apify (HarvestAPI actors), public posts only, no LinkedIn login.
 **Follower bands:** posts are split into two files by the author's follower count, so each post is compared with posts from accounts of a similar size.
 
-## Getting the data
+## Project layout
+
+```
+linkedin-analysis/
+├── data/
+│   ├── raw/                 # posts_<band>.parquet from GCS (gitignored)
+│   └── processed/           # generated outputs (gitignored)
+├── src/linkedin_analysis/   # reusable code: paths, data loading
+├── scripts/                 # command-line entry points
+├── tests/                   # pytest tests
+└── docs/                    # method notes
+```
+
+## Setup
+
+The project uses [uv](https://docs.astral.sh/uv/).
 
 ```bash
-mkdir -p data
-gcloud storage cp "gs://prototypes-498523-linkedin-post-model/2026-10-19/posts/*.parquet" data/
+uv sync
+```
+
+```bash
+gcloud storage cp "gs://prototypes-498523-linkedin-post-model/2026-10-19/posts/*.parquet" data/raw/
 ```
 
 Source: `gs://prototypes-498523-linkedin-post-model/2026-10-19/` (GCP project `prototypes-498523`). The same bucket holds the model outputs, results, baselines and raw Apify activity. Its own `README.md` describes them.
@@ -35,15 +53,16 @@ Source: `gs://prototypes-498523-linkedin-post-model/2026-10-19/` (GCP project `p
 ## Quick start
 
 ```python
-import pandas as pd
+from linkedin_analysis.data import load_all, load_posts
 
-posts = pd.read_parquet("data/posts_1k-10k.parquet")
+posts = load_posts("1k-10k")   # one band
+everything = load_all()        # both bands, with a `band` column
 
 posts.groupby("media")["hit"].mean()              # hit rate by media type
 posts.loc[posts.viral == 1, ["name", "reactions", "body"]]
 ```
 
-Needs `pandas` and `pyarrow`.
+Run it with `uv run python ...` so the package is importable.
 
 ## Columns
 

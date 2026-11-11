@@ -143,16 +143,22 @@ def evaluate_tab() -> None:
             "theme": [describe(c["column"], questions) for c in top],
             "effect": [c["contribution"] for c in top],
             "theme score": [c["value"] for c in top],
+            "average post": [b["column_means"][c["column"]] for c in top],
             "weight": [c["coef"] for c in top],
         })
         chart = alt.Chart(df).mark_bar().encode(
             x=alt.X("effect:Q", title="Push on log-lift vs. average post"),
             y=alt.Y("theme:N", sort=None, title=None, axis=alt.Axis(labelLimit=520)),
             color=alt.condition(alt.datum.effect > 0, alt.value("#2e7d32"), alt.value("#c62828")),
-            tooltip=["theme", alt.Tooltip("effect:Q", format="+.3f"), alt.Tooltip("theme score:Q", format=".2f"),
+            tooltip=["theme", alt.Tooltip("effect:Q", format="+.3f"),
+                     alt.Tooltip("theme score:Q", format=".2f", title="this post's score"),
+                     alt.Tooltip("average post:Q", format=".2f", title="average post's score"),
                      alt.Tooltip("weight:Q", format="+.3f")],
         ).properties(height=alt.Step(30))
         st.altair_chart(chart, use_container_width=True)
+        st.caption("Each bar compares this post with an average post: effect = weight × (this post's score − "
+                   "average post's score). A red bar on a helpful theme means the post is just below average on it, "
+                   "a missed boost, not a penalty. Theme scores themselves are always between 0 and 1.")
     else:
         st.write("No theme moves this prediction away from average.")
 

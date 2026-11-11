@@ -92,3 +92,52 @@ def compute_labels(posts: pd.DataFrame, config: LabelConfig = LabelConfig()) -> 
         [df["lift_pct"] >= 1 - q, df["lift_pct"] < q], ["top", "bottom"], "middle"
     )
     return df
+
+
+def _spearman(a: pd.Series, b: pd.Series) -> float:
+    pair = pd.concat([a, b], axis=1).dropna()
+    return round(float(pair.rank().corr().iloc[0, 1]), 3)
+
+
+def summarize(labels: pd.DataFrame, posts: pd.DataFrame) -> dict:
+    """Counts plus checks that the labels are free of author size and time drift.
+
+    `posts` is the unfiltered input, used for the dropped counts and the raw
+    band percentile (`pct`) that the labels are meant to replace.
+    """
+    author_median = labels.groupby("author")["reactions"].transform("median")
+    timeline = labels.groupby("author")["posted"].rank(pct=True)
+    raw_pct = labels["urn"].map(posts.set_index("urn")["pct"])
+    size_bucket = pd.cut(
+        author_median, [-np.inf, 3, 10, 30, np.inf], labels=["<=3", "4-10", "11-30", ">30"]
+    )
+
+    summary = {
+        "posts_in": len(posts),
+        "posts_labeled": len(labels),
+        "authors_in": posts["author"].nunique(),
+        "authors_labeled": labels["author"].nunique(),
+        "win_rate": round(float(labels["win"].mean()), 3),
+        "tiers": labels["tier"].value_counts().to_dict(),
+        "lift_quantiles": labels["lift"].quantile([0.05, 0.25, 0.5, 0.75, 0.95]).round(2).to_dict(),
+        "checks": {
+            "spearman_raw_pct_vs_author_median": _spearman(raw_pct, author_median),
+            "spearman_lift_vs_author_median": _spearman(labels["lift"], author_median),
+            "spearman_lift_pct_vs_author_median": _spearman(labels["lift_pct"], author_median),
+            "spearman_lift_vs_timeline_position": _spearman(labels["lift"], timeline),
+            "win_rate_by_author_median": labels.groupby(size_bucket, observed=False)["win"]
+            .mean()
+            .round(3)
+            .to_dict(),
+        },
+    }
+    if "band" in labels.columns:
+        summary["by_band"] = {
+            band: {
+                "posts": len(g),
+                "authors": g["author"].nunique(),
+                "win_rate": round(float(g["win"].mean()), 3),
+            }
+            for band, g in labels.groupby("band")
+        }
+    return summary

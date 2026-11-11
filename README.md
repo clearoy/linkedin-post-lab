@@ -30,10 +30,39 @@ linkedin-analysis/
 ├── data/
 │   ├── raw/                 # posts_<band>.parquet from GCS (gitignored)
 │   └── processed/           # generated outputs (gitignored)
-├── src/linkedin_analysis/   # reusable code: paths, data loading
-├── scripts/                 # command-line entry points
-├── tests/                   # pytest tests
-└── docs/                    # method notes
+├── src/linkedin_analysis/
+│   ├── paths.py             # folders, bands, GCS location
+│   ├── data.py              # load_posts / load_all
+│   └── labels.py            # author-relative labels
+├── scripts/
+│   └── build_labels.py      # writes data/processed/labels.parquet
+├── tests/                   # pytest tests (uv run pytest)
+└── docs/
+    └── labels.md            # label definitions, choices, checks
+```
+
+## Pipeline
+
+| Step | Status | Command | Output |
+|---|---|---|---|
+| 1. Labels | done | `uv run python scripts/build_labels.py` | `data/processed/labels.parquet` |
+| 2. LLM feature discovery | todo | | |
+| 3. Feature judging | todo | | |
+| 4. Linear model / RuleFit | todo | | |
+| 5. Evaluate and polish new posts | todo | | |
+
+**Labels:** each post is compared only with the same author's other posts, to
+remove the author's influence. The main target is `lift` = log of reactions
+relative to the author's usual. The labels also include `win` (≥2× usual) and
+`tier` (top/middle/bottom third, for contrast pairs). Definitions and
+checks are in [docs/labels.md](docs/labels.md).
+
+```python
+import pandas as pd
+from linkedin_analysis.data import load_all
+
+labels = pd.read_parquet("data/processed/labels.parquet")
+posts = load_all().merge(labels[["urn", "lift", "lift_pct", "win", "tier"]], on="urn")
 ```
 
 ## Setup
@@ -62,7 +91,14 @@ posts.groupby("media")["hit"].mean()              # hit rate by media type
 posts.loc[posts.viral == 1, ["name", "reactions", "body"]]
 ```
 
-Run it with `uv run python ...` so the package is importable.
+**Imports on this Mac:** Python 3.13+ skips `.pth` files flagged as hidden, and
+macOS keeps re-flagging the ones uv creates for the editable install. So don't
+rely on that install. Scripts in `scripts/` add `src/` to `sys.path` themselves,
+and pytest is configured with `pythonpath = ["src"]`. For a REPL or notebook:
+
+```bash
+PYTHONPATH=src uv run python
+```
 
 ## Columns
 

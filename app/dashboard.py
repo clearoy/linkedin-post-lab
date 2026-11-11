@@ -45,6 +45,24 @@ def bundle() -> dict:
 
 
 @st.cache_resource
+def theme_names() -> dict[str, dict]:
+    """DeepSeek-written names (scripts/name_themes.py), used only if the theme's questions still match."""
+    names = read_json(PROCESSED / "models" / "theme_names.json") or {}
+    themes = bundle().get("themes", {})
+    return {t: v for t, v in names.items() if t in themes and v.get("members") == themes[t]["members"]}
+
+
+def theme_title(t: str) -> str:
+    named = theme_names().get(t)
+    return named["name"] if named else bundle()["themes"][t]["label"]
+
+
+def theme_description(t: str) -> str:
+    named = theme_names().get(t)
+    return named["description"] if named else ""
+
+
+@st.cache_resource
 def jev() -> DecisionsClient:
     return DecisionsClient(LLMSettings.from_env("openrouter"), max_cost_usd=MAX_COST_PER_SESSION, max_connections=8)
 
@@ -73,7 +91,7 @@ def evaluate_tab() -> None:
     b = bundle()
     questions = {f["id"]: f["question"] for f in b["features"]}
     used = {t: v for t, v in b.get("themes", {}).items() if t in b["linear"]["coef"]}  # themes the model uses
-    questions.update({t: v["label"] for t, v in used.items()})
+    questions.update({t: theme_title(t) for t in used})
     ask = linear_features(b)  # only the questions those themes need
     m = b["metrics"]
 
@@ -138,11 +156,12 @@ def evaluate_tab() -> None:
     else:
         st.write("No theme moves this prediction away from average.")
 
-    with st.expander(f"The {len(used)} themes and their questions"):
+    with st.expander(f"How this post scored on the {len(used)} themes"):
         for t, v in used.items():
-            st.markdown(f"**{v['label']}** · weight {b['linear']['coef'][t]:+.3f} · this post: {row[t]:.2f} "
-                        f"· {len(v['members'])} questions")
-            st.markdown("\n".join(f"- {q} — P(yes) {p_yes.get(f, float('nan')):.2f}"
+            st.markdown(f"**{theme_title(t)}** — this post: **{row[t]:.0%}** of the checklist "
+                        f"(typical post {v['q25']:.0%}–{v['q75']:.0%})")
+            st.caption(theme_description(t))
+            st.markdown("\n".join(f"- {'✅' if p_yes.get(f, 0) >= 0.5 else '▫️'} {q} ({p_yes.get(f, float('nan')):.2f})"
                                     for f, q in zip(v["members"], v["member_questions"])))
 
     with st.expander(f"All {len(p_yes)} Jev answers"):
@@ -183,10 +202,10 @@ def pipeline_tab() -> None:
                       f"and scored P(yes) for each on {jt.get('posts', 0) + jte.get('posts', 0):,} "
                       f"posts ({jt.get('authors', '–')} train + {jte.get('authors', '–')} test authors) for "
                       f"${jt.get('usage', {}).get('cost_usd', 0) + jte.get('usage', {}).get('cost_usd', 0):.2f}."),
-        ("6 · Model", f"Features that occur together were grouped into **{data.get('themes', '–')} themes** "
-                      "(score = average P(yes) of its questions). A sparse linear model (≤10 themes) and RuleFit "
-                      "predict lift from the themes, **content only**: no media, length, or posting time. "
-                      "Tuned with author-grouped CV, then tested once."),
+        ("6 · Model", f"Questions that tend to be true together were grouped into **{data.get('themes', '–')} "
+                      "themes** (checklists); themes with fewer than 3 questions were set aside as too niche. "
+                      "A sparse linear model picks the themes that predict lift, **content only**: no media, length, "
+                      "or posting time. Tuned with author-grouped CV, then tested once."),
     ]
     for title, body in steps:
         st.markdown(f"**{title}** — {body}")
@@ -213,25 +232,68 @@ def pipeline_tab() -> None:
                "better higher. 0.5 = chance. Both content-only models beat chance; content alone ranks posts about as "
                "well as format alone (the reference row), and the difference is within noise at this sample size.")
 
-    coefs_path = PROCESSED / "models" / "linear_coefs.csv"
-    if coefs_path.exists():
-        coefs = pd.read_csv(coefs_path)
-        coefs = coefs[(coefs["coef"] != 0) & ~coefs["column"].str.startswith("ctl.")].head(12)
-        if len(coefs):
-            st.markdown("#### Content themes the linear model keeps")
-            coefs["label"] = coefs["question"]
-            lo, hi = min(coefs["effect_x"].min(), 1) - 0.05, max(coefs["effect_x"].max(), 1) + 0.05
-            chart = alt.Chart(coefs).mark_bar().encode(
-                x=alt.X("effect_x:Q", title="Reactions multiplier when present vs. absent (1.0 = no effect)",
-                        scale=alt.Scale(domain=[lo, hi], zero=False)),
-                x2=alt.datum(1.0),
-                y=alt.Y("label:N", sort=None, title=None, axis=alt.Axis(labelLimit=420)),
-                color=alt.condition(alt.datum.coef > 0, alt.value("#2e7d32"), alt.value("#c62828")),
-                tooltip=["label", alt.Tooltip("effect_x:Q", format=".2f"),
-                         alt.Tooltip("sign_stability:Q", format=".0%", title="same sign in CV folds")],
-            ).properties(height=alt.Step(30))
-            st.altair_chart(chart, use_container_width=True)
-            st.caption("Associations, not causes. Sign stability = share of CV folds with the same direction.")
+    themes_section()
+
+
+def themes_section() -> None:
+    if not (PROCESSED / "models" / "model_bundle.json").exists():
+        return
+    b = bundle()
+    themes = b.get("themes", {})
+    used = sorted((t for t in themes if themes[t].get("coef")), key=lambda t: -themes[t]["realistic_x"])
+    if not used:
+        return
+
+    st.markdown(f"#### What the model learned: {len(used)} content themes")
+    st.markdown(
+        "A **theme** is a checklist of yes/no questions that tend to be true on the same posts. "
+        "Every post gets a score on every theme: the share of that checklist it ticks. "
+        "A post that doesn't touch a theme scores near 0 there, so that theme barely changes its prediction."
+    )
+
+    df = pd.DataFrame([{"theme": theme_title(t), "effect": themes[t]["realistic_x"],
+                        "direction": "helps" if themes[t]["coef"] > 0 else "hurts",
+                        "folds": themes[t]["sign_stability"], "questions": len(themes[t]["members"])} for t in used])
+    lo, hi = min(df["effect"].min(), 1) - 0.03, max(df["effect"].max(), 1) + 0.03
+    chart = alt.Chart(df).mark_bar().encode(
+        x=alt.X("effect:Q", title="Typical effect on reactions vs. the author's usual (1.0 = none)",
+                scale=alt.Scale(domain=[lo, hi], zero=False)),
+        x2=alt.datum(1.0),
+        y=alt.Y("theme:N", sort=None, title=None, axis=alt.Axis(labelLimit=300, labelFontSize=13)),
+        color=alt.condition(alt.datum.effect > 1, alt.value("#2e7d32"), alt.value("#c62828")),
+        tooltip=["theme", alt.Tooltip("effect:Q", format=".2f", title="typical effect"),
+                 alt.Tooltip("folds:Q", format=".0%", title="same direction in CV folds"), "questions"],
+    ).properties(height=alt.Step(34))
+    st.altair_chart(chart, use_container_width=True)
+    st.caption("Typical effect: moving a post from a typical low to a typical high score on the theme "
+               "(25th to 75th percentile of training posts). Associations, not causes.")
+
+    for t in used:
+        v = themes[t]
+        with st.container(border=True):
+            left, mid, right = st.columns([3, 1, 1])
+            left.markdown(f"**{theme_title(t)}**  \n{theme_description(t)}")
+            mid.metric("Typical effect", f"{v['realistic_x']:.2f}×")
+            if v["coef"] > 0:
+                mid.badge("helps", icon=":material/arrow_upward:", color="green")
+            else:
+                mid.badge("hurts", icon=":material/arrow_downward:", color="red")
+            right.metric("Consistency", f"{round(v['sign_stability'] * 5)}/5 folds",
+                         help="In how many of the 5 cross-validation folds the theme pushed the same way.")
+            with st.expander(f"{len(v['members'])} questions in this checklist"):
+                qs = pd.DataFrame({"question": v["member_questions"],
+                                   "yes on % of training posts": v["member_yes_rate"]})
+                st.dataframe(qs, hide_index=True, use_container_width=True,
+                             column_config={"yes on % of training posts": st.column_config.ProgressColumn(
+                                 min_value=0, max_value=1, format="percent")})
+
+    unused = [t for t in themes if t not in used]
+    with st.expander(f"{len(unused)} other themes the model does not use"):
+        st.caption("Either they didn't predict performance in cross-validation, or they have fewer than 3 "
+                   "questions (too niche to apply to most posts).")
+        st.dataframe(pd.DataFrame([{"theme": theme_title(t), "description": theme_description(t),
+                                    "questions": len(themes[t]["members"])} for t in unused]),
+                     hide_index=True, use_container_width=True)
 
 
 tab1, tab2 = st.tabs(["Evaluate a post", "Pipeline"])

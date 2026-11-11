@@ -46,22 +46,32 @@ share the model ranks correctly (0.5 = chance). 95% CIs come from resampling the
   test authors.
 - Scoring more authors with Jev (about $0.024 per author) is the cheapest way to sharpen this.
 
-## What the sparse linear model keeps
+## Current model: content themes (text-only Jev)
 
-CV tried caps of 1–10 features and a cap of 3 scored best. The lasso path jumps from 2 active
-features to 4, so the model has 2:
+What changed from the first run:
+- **Text only:** Jev reads only the post text; no attached-media field.
+- **Broadly applicable features:** 147 of 205 features, each true in 5–95% of posts and for at least
+  20% of authors.
+- **New, smaller Jev subset:** 80 train and 45 test authors ($2.09).
+- **Themes:** features were clustered on train posts into 15 themes by how often they are true
+  together. Themes with fewer than 3 questions are too niche and are not modeled.
+- **Theme names:** written by DeepSeek from each theme's full question list (`scripts/name_themes.py`).
 
-| Feature | Weight | Multiplier | Same sign in CV folds |
+The sparse linear model on themes keeps 5: CV 0.607, test **0.623** [0.586, 0.660] on 45 held-out
+authors.
+
+| Theme | Questions | Typical effect* | Same sign in CV folds |
 |---|---|---|---|
-| Does the post explicitly mention an emotion felt by the author or their team? | +0.250 | 1.28× | 5/5 |
-| Does the post explicitly thank or express appreciation to a person, group, or organization? | +0.233 | 1.26× | 3/5 |
+| Personal experience story | 13 | 1.21× | 5/5 |
+| Job or opportunity listing | 24 | 1.19× | 5/5 |
+| Recognition and milestones | 12 | 1.11× | 5/5 |
+| Funding and news roundup | 4 | 1.03× | 3/5 |
+| Product or event promotion | 15 | 0.87× | 5/5 |
 
-A weight is the change in lift when P(yes) goes from 0 to 1; the multiplier is e^weight.
-These are associations within authors, not proven causes.
+\* Typical effect: moving a post's theme score from the 25th to the 75th percentile of training posts.
 
-## Note on media in Jev's input
-
-Jev was given each post as `{media_attached, post_text}`, and DeepSeek saw "Media attached: …"
-during discovery. The models no longer use media in any form. Jev's answers to content questions
-could still be slightly influenced by that line. Removing it fully means re-scoring the posts
-without it (about $4.32 for the same subset).
+**How to read a theme.**
+- A theme score is the share of its checklist a post ticks (the mean P(yes) of its questions).
+- Every post is scored on every theme. A post that doesn't touch a theme scores near 0 there, so that
+  theme barely changes its prediction.
+- Associations within authors, not proven causes.

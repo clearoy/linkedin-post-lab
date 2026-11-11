@@ -55,6 +55,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--themes", type=int, default=0,
                    help="group features into this many themes (by co-occurrence in train) and model the "
                         "theme scores instead of single features; 0 = single features")
+    p.add_argument("--min-theme-size", type=int, default=3,
+                   help="themes with fewer questions are too niche to apply to most posts; they are kept "
+                        "for reference but not given to the models")
     p.add_argument("--controls", action="store_true",
                    help="also feed format/time controls (media, length, posting time) to the models; "
                         "off by default so the models use content only")
@@ -109,7 +112,8 @@ def main() -> None:
         for t, v in themes.items():
             bank[t] = {"id": t, "question": f"Theme: {bank[v['central']]['question']}",
                        "members": [bank[m]["question"] for m in v["members"]]}
-        member_features, keep = keep, list(themes)
+        member_features = keep
+        keep = [t for t, v in themes.items() if len(v["members"]) >= args.min_theme_size]
     model_ctl = ctl_cols if args.controls else []  # the controls-only baseline below is a reference, not a model input
     cols = keep + model_ctl
 
@@ -200,9 +204,22 @@ def main() -> None:
 
     means = tr[cols].mean()
     jev_features = member_features if themes else keep
+    # Per-theme numbers for the dashboard. The realistic effect moves a theme from a typical
+    # low (25th percentile) to a typical high (75th) score on train posts; the full effect
+    # assumes every question in the theme is yes, which almost never happens.
+    stability = dict(zip(coefs["column"], coefs["sign_stability"]))
+    coef_of = dict(zip(cols, coef_full))
+    theme_stats = {}
+    for t, v in themes.items():
+        q25, q75 = (float(x) for x in tr[t].quantile([0.25, 0.75]))
+        c = float(coef_of.get(t, 0.0))
+        theme_stats[t] = {"coef": c, "q25": q25, "q75": q75,
+                          "realistic_x": float(np.exp(c * (q75 - q25))), "full_x": float(np.exp(c)),
+                          "sign_stability": float(stability.get(t, 0.0)),
+                          "member_yes_rate": [float((tr[m] >= 0.5).mean()) for m in v["members"]]}
     bundle = {
         "features": [bank[c] | {"mean_p_yes_train": float(tr[c].mean())} for c in jev_features],
-        "themes": {t: {**v, "label": bank[t]["question"], "member_questions": bank[t]["members"]}
+        "themes": {t: {**v, **theme_stats[t], "label": bank[t]["question"], "member_questions": bank[t]["members"]}
                    for t, v in themes.items()},
         "column_means": {c: float(means[c]) for c in cols},
         "linear": {"intercept": float(intercept),

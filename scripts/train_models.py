@@ -1,4 +1,8 @@
-"""Train the controls baseline, lasso and RuleFit on train authors; evaluate on test authors.
+"""Train the controls baseline, a sparse linear model and RuleFit on train authors; evaluate on test authors.
+
+The linear model is a relaxed lasso by default: at most --linear-max-terms
+content features (count chosen by CV) plus the controls, refit without
+shrinkage. --linear-max-terms 0 gives the plain lasso instead.
 
 Usage:
     uv run python scripts/train_models.py --judgments data/processed/judgments_train data/processed/judgments_test
@@ -26,15 +30,17 @@ import pandas as pd  # noqa: E402
 
 from linkedin_analysis.data import load_all  # noqa: E402
 from linkedin_analysis.model import (  # noqa: E402
+    RelaxedLasso,
     RuleFit,
+    ScaledLasso,
+    bootstrap_ci,
     controls_frame,
     cv_splits,
     evaluate,
     fit_ridge,
-    ScaledLasso,
-    bootstrap_ci,
     lasso_cv,
     pairwise_by_author,
+    relaxed_lasso_cv,
 )
 from linkedin_analysis.paths import PROCESSED  # noqa: E402
 
@@ -51,6 +57,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--linear-rule", choices=["min", "1se"], default="min",
                    help="lasso penalty: lowest CV error or sparsest within one standard error")
     p.add_argument("--rulefit-rule", choices=["min", "1se"], default="1se")
+    p.add_argument("--linear-max-terms", type=int, default=10,
+                   help="relaxed lasso with at most this many content features (CV picks how many); "
+                        "0 = plain lasso with no cap")
+    p.add_argument("--linear-k", type=int, default=None,
+                   help="fix the relaxed lasso's feature cap instead of letting CV choose (e.g. 8 for steadier picks)")
     return p.parse_args()
 
 
@@ -93,12 +104,37 @@ def main() -> None:
     ridge = fit_ridge(Xc_tr, y_tr)
     oof_ctl = oof(lambda X, y, f, Xv: fit_ridge(X, y).predict(Xv), Xc_tr, y_tr, folds)
 
-    # 2. Lasso on features + controls
+    # 2. Linear model on features + controls. coef_full is indexed like `cols`.
     X_tr, X_te = tr[cols].to_numpy(), te[cols].to_numpy()
-    lasso, lasso_info = lasso_cv(X_tr, y_tr, folds, rule=args.linear_rule)
-    oof_lin = oof(lambda X, y, f, Xv: ScaledLasso(lasso_info["alpha"]).fit(X, y).predict(Xv), X_tr, y_tr, folds)
-    fold_signs = np.array([np.sign(ScaledLasso(lasso_info["alpha"]).fit(X_tr[a], y_tr[a]).coef_)
-                           for a, _ in cv_splits(folds)])
+    if args.linear_max_terms:
+        F_tr, C_tr = tr[keep].to_numpy(), tr[ctl_cols].to_numpy()
+        rl, lasso_info = relaxed_lasso_cv(F_tr, C_tr, y_tr, folds, tr["author"].to_numpy(),
+                                          max(args.linear_max_terms, args.linear_k or 0), args.linear_k)
+
+        def full(m: RelaxedLasso) -> np.ndarray:
+            c = np.zeros(len(cols))
+            c[m.selected_] = m.feature_coef_
+            c[len(keep):] = m.control_coef_
+            return c
+
+        coef_full, intercept = full(rl), rl.intercept_
+        oof_lin = np.zeros(len(y_tr))
+        fold_signs = []
+        for a, v in cv_splits(folds):
+            m = RelaxedLasso(lasso_info["k"]).fit(F_tr[a], C_tr[a], y_tr[a])
+            oof_lin[v] = m.predict(F_tr[v], C_tr[v])
+            fold_signs.append(np.sign(full(m)))
+        fold_signs = np.array(fold_signs)
+        lin_test = rl.predict(te[keep].to_numpy(), te[ctl_cols].to_numpy())
+        lasso_info.update(model="relaxed_lasso", nonzero=int((coef_full != 0).sum()))
+    else:
+        lasso, lasso_info = lasso_cv(X_tr, y_tr, folds, rule=args.linear_rule)
+        coef_full, intercept = lasso.coef_, lasso.intercept_
+        oof_lin = oof(lambda X, y, f, Xv: ScaledLasso(lasso_info["alpha"]).fit(X, y).predict(Xv), X_tr, y_tr, folds)
+        fold_signs = np.array([np.sign(ScaledLasso(lasso_info["alpha"]).fit(X_tr[a], y_tr[a]).coef_)
+                               for a, _ in cv_splits(folds)])
+        lin_test = lasso.predict(X_te)
+        lasso_info["model"] = "lasso"
 
     # 3. RuleFit
     rf = RuleFit(rule=args.rulefit_rule, random_state=args.seed).fit(tr[cols], y_tr, folds)
@@ -107,7 +143,7 @@ def main() -> None:
         m = RuleFit(rule=args.rulefit_rule, random_state=args.seed).fit(tr.loc[a, cols], y_tr[a], folds[a], alpha=rf.info_["alpha"])
         oof_rf[v] = m.predict(tr.loc[v, cols])
 
-    test_preds = {"controls": ridge.predict(Xc_te), "linear": lasso.predict(X_te), "rulefit": rf.predict(te[cols])}
+    test_preds = {"controls": ridge.predict(Xc_te), "linear": lin_test, "rulefit": rf.predict(te[cols])}
     metrics = {
         name: {"cv_train": evaluate(y_tr, o, tr["author"]), "test": evaluate(y_te, test_preds[name], te["author"])}
         for name, o in [("controls", oof_ctl), ("linear", oof_lin), ("rulefit", oof_rf)]
@@ -127,10 +163,10 @@ def main() -> None:
     # Outputs
     args.out.mkdir(parents=True, exist_ok=True)
     coefs = pd.DataFrame({
-        "column": cols, "coef": lasso.coef_,
+        "column": cols, "coef": coef_full,
         "question": [bank[c]["question"] if c in bank else c for c in cols],
         "mean_p_yes_train": [float(tr[c].mean()) for c in cols],
-        "sign_stability": [float((fold_signs[:, j] == np.sign(lasso.coef_[j])).mean()) if lasso.coef_[j] else 0.0
+        "sign_stability": [float((fold_signs[:, j] == np.sign(coef_full[j])).mean()) if coef_full[j] else 0.0
                            for j in range(len(cols))],
     })
     coefs["effect_x"] = np.exp(coefs["coef"])  # multiplier on reactions when P(yes) goes 0 -> 1
@@ -144,8 +180,8 @@ def main() -> None:
     bundle = {
         "features": [bank[c] | {"mean_p_yes_train": float(means[c])} for c in keep],
         "column_means": {c: float(means[c]) for c in cols},
-        "linear": {"intercept": float(lasso.intercept_),
-                   "coef": {c: float(v) for c, v in zip(cols, lasso.coef_) if v != 0}},
+        "linear": {"intercept": float(intercept),
+                   "coef": {c: float(v) for c, v in zip(cols, coef_full) if v != 0}},
         "rulefit": {
             "intercept": float(rf.lasso_.intercept_),
             "rules": [{"conditions": r.conditions, "coef": float(c), "text": r.text()}
@@ -158,7 +194,7 @@ def main() -> None:
     (args.out / "model_bundle.json").write_text(json.dumps(bundle, indent=2))
 
     print(json.dumps({k: v for k, v in metrics.items() if k in ("controls", "linear", "rulefit")}, indent=2))
-    print("\nTop lasso coefficients:")
+    print("\nLinear model terms:")
     print(coefs[coefs["coef"] != 0].head(15)[["column", "coef", "effect_x", "sign_stability"]].to_string(index=False))
     print("\nTop RuleFit terms:")
     print(terms.head(10)[["term", "coef", "support"]].to_string(index=False))

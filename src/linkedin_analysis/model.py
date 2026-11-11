@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import GradientBoostingRegressor
-from sklearn.linear_model import Lasso, LassoCV, Ridge
+from sklearn.linear_model import Lasso, LassoCV, LinearRegression, Ridge, lasso_path
 
 MEDIA = ["image", "images", "video", "document"]  # "text" is the baseline
 HOUR_BUCKETS = {"night": (0, 5), "afternoon": (12, 17), "evening": (18, 23)}  # morning is the baseline
@@ -70,11 +70,13 @@ class ScaledLasso:
 
 
 def lasso_cv(X: np.ndarray, y: np.ndarray, folds: np.ndarray, rule: str = "min",
-             standardize: bool = True) -> tuple["ScaledLasso | Lasso", dict]:
+             standardize: bool = True, max_terms: int | None = None) -> tuple["ScaledLasso | Lasso", dict]:
     """Choose the lasso penalty with author-grouped CV, then refit on all of X.
 
     rule="min" takes the lowest CV error; rule="1se" the sparsest model within
-    one standard error of it.
+    one standard error of it. With `max_terms`, only penalties that leave at
+    most that many non-zero terms (fitted on all of X) are allowed, and the one
+    with the lowest CV error among them is used.
     """
     mean, std = X.mean(axis=0), X.std(axis=0)
     std = np.where(std == 0, 1.0, std)
@@ -85,12 +87,68 @@ def lasso_cv(X: np.ndarray, y: np.ndarray, folds: np.ndarray, rule: str = "min",
     best = int(mse.argmin())
     alpha_1se = float(cv.alphas_[mse <= mse[best] + se[best]].max())
     alpha = float(cv.alphas_[best]) if rule == "min" else alpha_1se
+    if max_terms is not None:
+        _, coefs, _ = lasso_path(Xs - Xs.mean(axis=0), y - y.mean(), alphas=cv.alphas_, max_iter=20000)
+        n_terms = (coefs != 0).sum(axis=0)
+        allowed = np.where(n_terms <= max_terms)[0]
+        pick = allowed[mse[allowed].argmin()]
+        if cv.alphas_[pick] > alpha:  # only ever makes the model sparser
+            alpha = float(cv.alphas_[pick])
     model = ScaledLasso(alpha).fit(X, y) if standardize else Lasso(alpha=alpha, max_iter=20000).fit(X, y)
-    return model, {"alpha": alpha, "rule": rule, "alpha_min": float(cv.alphas_[best]),
+    return model, {"alpha": alpha, "rule": rule, "max_terms": max_terms, "alpha_min": float(cv.alphas_[best]),
                    "alpha_1se": alpha_1se, "cv_mse": float(mse[best]), "nonzero": int((model.coef_ != 0).sum())}
 
 
 lasso_1se = lasso_cv  # backwards-compatible name
+
+
+class RelaxedLasso:
+    """Sparse linear model: lasso picks at most `k` content features, then an
+    unpenalized refit on those features plus all controls.
+
+    Selection: y and the features are first adjusted for the controls, then the
+    lasso path on standardized features is followed until just before more than
+    `k` features are active. The refit removes the lasso's shrinkage, so the
+    kept effects keep their full size. Controls are always kept and never count
+    toward `k`.
+    """
+
+    def __init__(self, k: int):
+        self.k = k
+
+    def fit(self, F: np.ndarray, C: np.ndarray, y: np.ndarray) -> "RelaxedLasso":
+        base = np.c_[np.ones(len(C)), C]
+        beta = np.linalg.lstsq(base, np.c_[y, F], rcond=None)[0]
+        resid = np.c_[y, F] - base @ beta
+        ry, rf = resid[:, 0], resid[:, 1:]
+        sd = rf.std(axis=0)
+        sd[sd == 0] = 1.0
+        _, coefs, _ = lasso_path(rf / sd, ry, n_alphas=200, max_iter=20000)
+        active = (coefs != 0).sum(axis=0)
+        self.selected_ = np.flatnonzero(coefs[:, np.where(active <= self.k)[0].max()])
+        ols = LinearRegression().fit(np.c_[F[:, self.selected_], C], y)
+        self.feature_coef_ = ols.coef_[: len(self.selected_)]
+        self.control_coef_ = ols.coef_[len(self.selected_):]
+        self.intercept_ = float(ols.intercept_)
+        return self
+
+    def predict(self, F: np.ndarray, C: np.ndarray) -> np.ndarray:
+        return F[:, self.selected_] @ self.feature_coef_ + C @ self.control_coef_ + self.intercept_
+
+
+def relaxed_lasso_cv(F: np.ndarray, C: np.ndarray, y: np.ndarray, folds: np.ndarray, authors: np.ndarray,
+                     max_k: int = 10, fixed_k: int | None = None) -> tuple[RelaxedLasso, dict]:
+    """Pick k in 1..max_k by out-of-fold pairwise accuracy (selection redone in
+    each fold), ties going to the smaller k; then refit on all data.
+    `fixed_k` skips the choice but still reports the CV scores."""
+    scores = {}
+    for k in range(1, max_k + 1):
+        pred = np.zeros(len(y))
+        for tr, va in cv_splits(folds):
+            pred[va] = RelaxedLasso(k).fit(F[tr], C[tr], y[tr]).predict(F[va], C[va])
+        scores[k] = evaluate(y, pred, authors)["pairwise_accuracy"]
+    best_k = fixed_k or max(scores, key=lambda k: (scores[k], -k))
+    return RelaxedLasso(best_k).fit(F, C, y), {"k": best_k, "cv_pairwise_by_k": scores}
 
 
 # RuleFit

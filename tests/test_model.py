@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from linkedin_analysis.model import RuleFit, controls_frame, evaluate, lasso_cv
+from linkedin_analysis.model import RelaxedLasso, RuleFit, controls_frame, evaluate, lasso_cv, relaxed_lasso_cv
 
 
 def synthetic(n_authors: int = 120, per_author: int = 12, seed: int = 0):
@@ -59,3 +59,30 @@ def test_controls_frame():
     assert c.loc[1, "ctl.media_video"] == 1 and c.loc[0, "ctl.media_video"] == 0
     assert c.loc[1, "ctl.weekend"] == 1 and c.loc[1, "ctl.hour_evening"] == 1
     assert c.loc[0, ["ctl.hour_night", "ctl.hour_afternoon", "ctl.hour_evening"]].sum() == 0
+
+
+def test_lasso_max_terms_caps_the_model():
+    rng = np.random.default_rng(1)
+    X = rng.uniform(size=(1200, 15))
+    y = X[:, :8] @ np.linspace(1.0, 0.3, 8) + rng.normal(0, 0.3, 1200)
+    folds = np.arange(1200) % 5
+    free, _ = lasso_cv(X, y, folds)
+    capped, info = lasso_cv(X, y, folds, max_terms=3)
+    assert (free.coef_ != 0).sum() > 3
+    assert 0 < (capped.coef_ != 0).sum() <= 3
+    assert set(np.flatnonzero(capped.coef_)) <= {0, 1, 2, 3}  # keeps the strongest true features
+
+
+def test_relaxed_lasso_keeps_k_features_unshrunk_plus_controls():
+    rng = np.random.default_rng(2)
+    n = 1500
+    F = rng.uniform(size=(n, 12))
+    C = rng.normal(size=(n, 2))
+    y = 0.9 * F[:, 0] - 0.6 * F[:, 1] + 0.3 * C[:, 0] + rng.normal(0, 0.2, n)
+    m = RelaxedLasso(2).fit(F, C, y)
+    assert sorted(m.selected_) == [0, 1]
+    np.testing.assert_allclose(m.feature_coef_, [0.9, -0.6], atol=0.05)  # no shrinkage
+    np.testing.assert_allclose(m.control_coef_[0], 0.3, atol=0.05)
+    authors = np.arange(n) // 10
+    best, info = relaxed_lasso_cv(F, C, y, authors % 5, authors, max_k=5)
+    assert info["k"] >= 2 and len(best.selected_) <= 5

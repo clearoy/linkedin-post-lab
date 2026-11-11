@@ -17,13 +17,14 @@ Code: [`model.py`](../src/linkedin_analysis/model.py),
 | Model | What it is |
 |---|---|
 | Controls | Ridge on controls only: the baseline content must beat |
-| Linear | Lasso on standardized inputs, penalty with lowest CV error; coefficients reported in raw units |
-| RuleFit | Rules from 100 depth-3 boosted trees plus scaled linear terms, then lasso (one-standard-error penalty) |
+| Linear | **Relaxed lasso**: the lasso picks at most 10 content features (cross-validation picks how many), then an unpenalized refit on those plus all controls |
+| RuleFit | Rules from 100 depth-3 boosted trees plus scaled linear terms, then lasso (one-standard-error penalty): 76 rules + 4 linear terms |
 
-**Penalty choice, made on train CV only.** For the linear model, the
-one-standard-error rule removed every term (CV 0.519). The minimum-error
-penalty kept 29 terms (CV 0.589). For RuleFit, the one-standard-error rule
-did better (CV 0.580 vs 0.573 with 350 terms, which overfit).
+**Why a relaxed lasso.**
+- **Plain lasso with the lowest-error penalty** kept 26 content features (CV 0.589, test 0.607).
+- **Forcing plain lasso down to 10 terms** needed so much penalty that it shrank the survivors and dropped the controls (CV 0.577).
+- **The relaxed lasso** separates choosing features from estimating effects, so the kept effects keep their full size. Choosing 1–10 features by CV: 3 scored best (0.600); 5–9 scored 0.593–0.598, which is within noise.
+- **RuleFit:** the one-standard-error rule beat the lowest-error penalty on CV (0.580 vs 0.573 with 350 terms).
 
 ## Results on held-out authors
 
@@ -34,7 +35,8 @@ resampling the 65 test authors.
 | Model | CV | Test | Gain over controls |
 |---|---|---|---|
 | Controls | 0.579 | 0.581 [0.547, 0.614] | — |
-| Linear | 0.589 | **0.607** [0.566, 0.645] | +0.026 [−0.009, +0.059] |
+| Linear (relaxed, 3 features) | 0.600 | **0.600** [0.560, 0.640] | +0.019 [−0.019, +0.053] |
+| *Plain lasso, 26 features (earlier)* | *0.589* | *0.607 [0.566, 0.645]* | *+0.026 [−0.009, +0.059]* |
 | RuleFit | 0.580 | 0.595 [0.559, 0.628] | +0.014 [−0.016, +0.042] |
 
 **Reading it:**
@@ -43,13 +45,21 @@ resampling the 65 test authors.
   interval still includes zero.
 - Scoring more authors with Jev (about $0.024 per author) is the cheapest way to confirm it.
 
-## What the linear model keeps (strongest first)
+## What the linear model keeps
 
-Most of these keep the same sign in 4–5 of the 5 CV folds:
-- **Up:** announcing a new job or role (1.41×), a business-deal story (1.18×), lists of
-  external opportunities (1.11×), naming an emotion (1.10×), thanking someone (1.09×), a
-  specific person's journey (1.08×), family mentions (1.07×), an image attached (1.07×).
-- **Down:** templates or exercises for the reader (0.89×), describing a problem that affects
-  a group of people (0.97×).
+With k=3 (the CV choice):
+- emotion named (1.23×; chosen in 3/5 folds);
+- identifies a problem or gap (0.87×; 1/5);
+- advocates a method or practice (0.87×; 2/5);
+- plus controls: video 1.31×, multi-image 1.31×, single image 1.14×, longer posts, evening and weekend posting.
+
+The 3-feature picks change from fold to fold. A cap of 8 (`--linear-k 8`) settles on 6 features
+with CV 0.596, about the same, and steadier picks:
+- **new job or role: 2.07×, chosen in 5/5 folds**;
+- emotion: 1.11×, 4/5;
+- problem or gap: 0.89×, 4/5;
+- gratitude: 1.17×, 3/5;
+- advocates a method: 0.91×, 3/5;
+- actionable advice: 0.94×, 2/5.
 
 These are associations within authors, not proven causes.

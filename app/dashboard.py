@@ -149,7 +149,7 @@ def evaluate_tab() -> None:
             y=alt.Y("property:N", sort=None, title=None, axis=alt.Axis(labelLimit=520)),
             color=alt.condition(alt.datum.effect > 0, alt.value("#2e7d32"), alt.value("#c62828")),
             tooltip=["property", alt.Tooltip("effect:Q", format="+.3f"), alt.Tooltip("P(yes):Q", format=".2f")],
-        ).properties(height=28 * len(df))
+        ).properties(height=alt.Step(30))
         st.altair_chart(chart, use_container_width=True)
     else:
         st.write("No property moves this prediction away from average.")
@@ -199,7 +199,7 @@ def pipeline_tab() -> None:
         ("5 · Judge", f"Jev 1.13 scored P(yes) for every feature on {jt.get('posts', 0) + jte.get('posts', 0):,} "
                       f"posts ({jt.get('authors', '–')} train + {jte.get('authors', '–')} test authors) for "
                       f"${jt.get('usage', {}).get('cost_usd', 0) + jte.get('usage', {}).get('cost_usd', 0):.2f}."),
-        ("6 · Model", f"Lasso and RuleFit predict lift from {data.get('features_used', '–')} features plus "
+        ("6 · Model", f"A sparse linear model (≤10 features) and RuleFit predict lift from {data.get('features_used', '–')} features plus "
                       "controls (media, length, time), tuned with author-grouped CV, then tested once."),
     ]
     for title, body in steps:
@@ -208,7 +208,7 @@ def pipeline_tab() -> None:
     if not metrics:
         return
     st.markdown(f"#### Results on {data.get('test_authors', '–')} held-out authors ({data.get('test_posts', 0):,} posts)")
-    names = {"controls": "Controls only (media, length, time)", "linear": "Linear (lasso)", "rulefit": "RuleFit"}
+    names = {"controls": "Controls only (media, length, time)", "linear": "Sparse linear (relaxed lasso)", "rulefit": "RuleFit"}
     res = pd.DataFrame([{
         "model": names[k],
         "pairwise accuracy (test)": metrics[k]["test"]["pairwise_accuracy"],
@@ -242,7 +242,7 @@ def pipeline_tab() -> None:
                 color=alt.condition(alt.datum.coef > 0, alt.value("#2e7d32"), alt.value("#c62828")),
                 tooltip=["label", alt.Tooltip("effect_x:Q", format=".2f"),
                          alt.Tooltip("sign_stability:Q", format=".0%", title="same sign in CV folds")],
-            ).properties(height=28 * len(coefs))
+            ).properties(height=alt.Step(30))
             st.altair_chart(chart, use_container_width=True)
             st.caption("Associations, not causes. Sign stability = share of CV folds with the same direction.")
 

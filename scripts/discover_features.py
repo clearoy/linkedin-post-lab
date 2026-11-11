@@ -38,6 +38,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--temperature", type=float, default=1.0, help="discovery temperature (merge uses 0)")
     p.add_argument("--max-per-merge", type=int, default=120, help="proposals per merge call")
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--split", default="train", choices=["train", "all"],
+                   help="sample pairs only from train authors (default) so test authors stay unseen")
     p.add_argument("--workers", type=int, default=8)
     p.add_argument("--model", default=None, help="override DEEPSEEK_MODEL")
     p.add_argument("--out", type=Path, default=PROCESSED / "features")
@@ -53,6 +55,9 @@ def main() -> None:
     args = parse_args()
     labels = pd.read_parquet(PROCESSED / "labels.parquet")[["urn", "tier"]]
     labeled = load_all().merge(labels, on="urn")
+    if args.split == "train":
+        splits = pd.read_parquet(PROCESSED / "splits.parquet")
+        labeled = labeled[labeled["author"].isin(splits.loc[splits["split"] == "train", "author"])]
     pairs = discovery.sample_pairs(labeled, args.n_pairs, seed=args.seed)
     batches = discovery.batched(pairs, args.pairs_per_batch)
 
@@ -82,6 +87,7 @@ def main() -> None:
         "model": client.settings.model,
         "pairs": len(pairs),
         "authors": len({p["author"] for p in pairs}),
+        "split": args.split,
         "raw_proposals": len(proposals),
         "raw_with_lint_issues": sum(bool(p["lint"]) for p in proposals),
         "raw_by_dimension": pd.Series([p["dimension"] for p in proposals]).value_counts().to_dict(),

@@ -31,6 +31,10 @@ Report the differences you actually see, wherever they are: in what the post say
    - Content: "Does the post argue against a commonly held belief in its field?"
    - Content: "Does the post describe a mistake or failure the author made?"
 
+**Keep every property general.** It must be able to apply to posts on many different subjects, across industries and authors, so describe the *kind* of content, not one post's particular subject. Do not write a property that only one of these posts could plausibly have.
+   - Too specific: "Does the post mention an award for corporate law?" General: "Does the post congratulate someone on an award or recognition?"
+   - Too specific: "Does the post describe an AI agent misbehaving?" General: "Does the post describe a technology failing or behaving unexpectedly?"
+
 ## Output
 
 Return a JSON object with exactly $n_properties properties, each different from the others:

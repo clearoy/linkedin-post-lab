@@ -37,15 +37,22 @@ linkedin-analysis/
 │   ├── llm.py               # DeepSeek / OpenRouter client, cache
 │   ├── discovery.py         # propose + merge properties (DeepSeek)
 │   ├── judge.py             # P(yes) per post x feature (Jev decisions API)
+│   ├── splits.py            # 80/20 author split + CV folds
+│   ├── model.py             # controls baseline, lasso, RuleFit, evaluation
+│   ├── predict.py           # score a new post from the saved model bundle
 │   └── prompts/             # all LLM prompts, as editable .md files
 ├── scripts/
 │   ├── build_labels.py      # writes data/processed/labels.parquet
+│   ├── build_splits.py      # writes data/processed/splits.parquet
 │   ├── discover_features.py # writes data/processed/features/feature_bank.json
-│   └── judge_features.py    # writes data/processed/judgments/features.parquet
+│   ├── judge_features.py    # writes data/processed/judgments*/features.parquet
+│   └── train_models.py      # writes data/processed/models/
+├── app/dashboard.py         # Streamlit: evaluate a post + pipeline overview
 ├── tests/                   # pytest tests (uv run pytest)
 └── docs/
     ├── labels.md            # label definitions, choices, checks
-    └── features.md          # feature discovery and judging method
+    ├── features.md          # feature discovery and judging method
+    └── models.md            # models, first results
 ```
 
 ## Pipeline
@@ -53,10 +60,15 @@ linkedin-analysis/
 | Step | Status | Command | Output |
 |---|---|---|---|
 | 1. Labels | done | `uv run python scripts/build_labels.py` | `data/processed/labels.parquet` |
-| 2. LLM feature discovery (DeepSeek) | smoke-tested | `uv run python scripts/discover_features.py` | `data/processed/features/feature_bank.json` |
-| 3. Feature judging (Jev via OpenRouter decisions) | smoke-tested | `uv run python scripts/judge_features.py` | `data/processed/judgments/features.parquet` |
-| 4. Linear model / RuleFit | todo | | |
-| 5. Evaluate and polish new posts | todo | | |
+| 2. Author split (80/20, 5 folds) | done | `uv run python scripts/build_splits.py` | `data/processed/splits.parquet` |
+| 3. LLM feature discovery (DeepSeek) | done: 205 features | `uv run python scripts/discover_features.py` | `data/processed/features/feature_bank.json` |
+| 4. Feature judging (Jev) | done on a subset ($4.32) | `uv run python scripts/judge_features.py --split train --n-authors 115 --max-cost 3 --out data/processed/judgments_train` (and `--split test --n-authors 65 --max-cost 1.8 --out data/processed/judgments_test`) | `data/processed/judgments_*/features.parquet` |
+| 5. Linear model / RuleFit | done | `uv run python scripts/train_models.py --judgments data/processed/judgments_train data/processed/judgments_test` | `data/processed/models/` |
+| 6. Dashboard | done | `uv run streamlit run app/dashboard.py` | http://localhost:8501 |
+
+First results are in [docs/models.md](docs/models.md). On held-out authors, the
+linear model ranks same-author posts correctly 60.7% of the time, versus 58.1%
+for media, length and time alone.
 
 **Labels:** each post is compared only with the same author's other posts, to
 remove the author's influence. The main target is `lift` = log of reactions

@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from linkedin_analysis.model import RuleFit, controls_frame, evaluate, lasso_1se
+from linkedin_analysis.model import RuleFit, controls_frame, evaluate, lasso_cv
 
 
 def synthetic(n_authors: int = 120, per_author: int = 12, seed: int = 0):
@@ -33,18 +33,19 @@ def test_evaluate_only_compares_within_author():
 
 def test_lasso_finds_true_features():
     X, y, authors, folds = synthetic()
-    model, info = lasso_1se(X.to_numpy(), y, folds)
+    model, info = lasso_cv(X.to_numpy(), y, folds)
     coef = dict(zip(X.columns, model.coef_))
-    assert coef["f0"] > 0.4
+    assert 0.6 < coef["f0"] < 1.0  # raw units: true effect 0.8
     assert all(abs(coef[f]) < 0.1 for f in ["f3", "f4", "f5"])
-    assert info["alpha"] >= info["alpha_min"]
+    assert info["alpha_1se"] >= info["alpha_min"] == info["alpha"]
+    np.testing.assert_allclose(model.predict(X.to_numpy()).mean(), y.mean(), atol=0.05)
 
 
 def test_rulefit_beats_linear_on_interaction_and_names_the_rule():
     X, y, authors, folds = synthetic()
     train, test = folds != 0, folds == 0
     rf = RuleFit(n_trees=80, random_state=0).fit(X[train], y[train], folds[train])
-    lin, _ = lasso_1se(X[train].to_numpy(), y[train], folds[train])
+    lin, _ = lasso_cv(X[train].to_numpy(), y[train], folds[train])
     rf_acc = evaluate(y[test], rf.predict(X[test]), authors[test])["pairwise_accuracy"]
     lin_acc = evaluate(y[test], lin.predict(X[test].to_numpy()), authors[test])["pairwise_accuracy"]
     assert rf_acc > lin_acc

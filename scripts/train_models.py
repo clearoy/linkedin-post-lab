@@ -31,10 +31,12 @@ from linkedin_analysis.model import (  # noqa: E402
     cv_splits,
     evaluate,
     fit_ridge,
-    lasso_1se,
+    ScaledLasso,
+    bootstrap_ci,
+    lasso_cv,
+    pairwise_by_author,
 )
 from linkedin_analysis.paths import PROCESSED  # noqa: E402
-from sklearn.linear_model import Lasso  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -45,6 +47,10 @@ def parse_args() -> argparse.Namespace:
                    help="drop features whose mean P(yes) in train is below this or above 1 minus this")
     p.add_argument("--out", type=Path, default=PROCESSED / "models")
     p.add_argument("--seed", type=int, default=0)
+    # Chosen by train CV (see docs/models.md): linear 0.589 (min) vs 0.519 (1se); RuleFit 0.580 (1se) vs 0.573 (min).
+    p.add_argument("--linear-rule", choices=["min", "1se"], default="min",
+                   help="lasso penalty: lowest CV error or sparsest within one standard error")
+    p.add_argument("--rulefit-rule", choices=["min", "1se"], default="1se")
     return p.parse_args()
 
 
@@ -89,27 +95,28 @@ def main() -> None:
 
     # 2. Lasso on features + controls
     X_tr, X_te = tr[cols].to_numpy(), te[cols].to_numpy()
-    lasso, lasso_info = lasso_1se(X_tr, y_tr, folds)
-    oof_lin = oof(lambda X, y, f, Xv: Lasso(alpha=lasso_info["alpha"], max_iter=20000).fit(X, y).predict(Xv),
-                  X_tr, y_tr, folds)
-    fold_signs = np.array([np.sign(Lasso(alpha=lasso_info["alpha"], max_iter=20000).fit(X_tr[a], y_tr[a]).coef_)
+    lasso, lasso_info = lasso_cv(X_tr, y_tr, folds, rule=args.linear_rule)
+    oof_lin = oof(lambda X, y, f, Xv: ScaledLasso(lasso_info["alpha"]).fit(X, y).predict(Xv), X_tr, y_tr, folds)
+    fold_signs = np.array([np.sign(ScaledLasso(lasso_info["alpha"]).fit(X_tr[a], y_tr[a]).coef_)
                            for a, _ in cv_splits(folds)])
 
     # 3. RuleFit
-    rf = RuleFit(random_state=args.seed).fit(tr[cols], y_tr, folds)
+    rf = RuleFit(rule=args.rulefit_rule, random_state=args.seed).fit(tr[cols], y_tr, folds)
     oof_rf = np.zeros(len(y_tr))
     for a, v in cv_splits(folds):
-        m = RuleFit(random_state=args.seed).fit(tr.loc[a, cols], y_tr[a], folds[a], alpha=rf.info_["alpha"])
+        m = RuleFit(rule=args.rulefit_rule, random_state=args.seed).fit(tr.loc[a, cols], y_tr[a], folds[a], alpha=rf.info_["alpha"])
         oof_rf[v] = m.predict(tr.loc[v, cols])
 
+    test_preds = {"controls": ridge.predict(Xc_te), "linear": lasso.predict(X_te), "rulefit": rf.predict(te[cols])}
     metrics = {
-        name: {"cv_train": evaluate(y_tr, o, tr["author"]), "test": evaluate(y_te, p, te["author"])}
-        for name, o, p in [
-            ("controls", oof_ctl, ridge.predict(Xc_te)),
-            ("linear", oof_lin, lasso.predict(X_te)),
-            ("rulefit", oof_rf, rf.predict(te[cols])),
-        ]
+        name: {"cv_train": evaluate(y_tr, o, tr["author"]), "test": evaluate(y_te, test_preds[name], te["author"])}
+        for name, o in [("controls", oof_ctl), ("linear", oof_lin), ("rulefit", oof_rf)]
     }
+    per_author = {k: pairwise_by_author(y_te, p, te["author"]) for k, p in test_preds.items()}
+    for name in metrics:
+        metrics[name]["test"]["pairwise_accuracy_ci95"] = bootstrap_ci(per_author[name])["ci95"]
+        if name != "controls":
+            metrics[name]["test"]["gain_over_controls"] = bootstrap_ci(per_author[name], per_author["controls"])
     metrics["data"] = {"train_authors": int(tr["author"].nunique()), "train_posts": len(tr),
                        "test_authors": int(te["author"].nunique()), "test_posts": len(te),
                        "features_scored": len(feat_cols), "features_used": len(keep),

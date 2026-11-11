@@ -7,8 +7,11 @@ Three models, all fitted on train authors with the same author-grouped CV folds:
 
 `lift` already removes each author's level, so raw P(yes) features can be
 used directly, which keeps the models usable on a brand-new post.
-Regularization uses the one-standard-error rule: the sparsest model whose CV
-error is within one standard error of the best, which favors stable insights.
+Lasso inputs are standardized and the penalty is the one with the lowest
+author-grouped CV error. (The sparser one-standard-error rule was tried first
+and removed every term, including controls that clearly carry signal.)
+Coefficients are reported back in raw units, so a coefficient is the change in
+lift when P(yes) goes from 0 to 1.
 """
 
 from dataclasses import dataclass, field
@@ -48,16 +51,46 @@ def cv_splits(folds: np.ndarray) -> list[tuple[np.ndarray, np.ndarray]]:
     return [(np.where(folds != k)[0], np.where(folds == k)[0]) for k in np.unique(folds)]
 
 
-def lasso_1se(X: np.ndarray, y: np.ndarray, folds: np.ndarray, sample_weight=None) -> tuple[Lasso, dict]:
-    """LassoCV over author folds, then refit at the 1-SE alpha."""
-    cv = LassoCV(cv=cv_splits(folds), alphas=40, max_iter=20000, n_jobs=-1).fit(X, y)
+class ScaledLasso:
+    """Lasso fitted on standardized inputs, exposing raw-unit coef_ and intercept_."""
+
+    def __init__(self, alpha: float):
+        self.alpha = alpha
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> "ScaledLasso":
+        self.mean_, self.std_ = X.mean(axis=0), X.std(axis=0)
+        self.std_[self.std_ == 0] = 1.0
+        m = Lasso(alpha=self.alpha, max_iter=20000).fit((X - self.mean_) / self.std_, y)
+        self.coef_ = m.coef_ / self.std_
+        self.intercept_ = float(m.intercept_ - (self.coef_ * self.mean_).sum())
+        return self
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        return X @ self.coef_ + self.intercept_
+
+
+def lasso_cv(X: np.ndarray, y: np.ndarray, folds: np.ndarray, rule: str = "min",
+             standardize: bool = True) -> tuple["ScaledLasso | Lasso", dict]:
+    """Choose the lasso penalty with author-grouped CV, then refit on all of X.
+
+    rule="min" takes the lowest CV error; rule="1se" the sparsest model within
+    one standard error of it.
+    """
+    mean, std = X.mean(axis=0), X.std(axis=0)
+    std = np.where(std == 0, 1.0, std)
+    Xs = (X - mean) / std if standardize else X
+    cv = LassoCV(cv=cv_splits(folds), alphas=40, max_iter=20000, n_jobs=-1).fit(Xs, y)
     mse = cv.mse_path_.mean(axis=1)
     se = cv.mse_path_.std(axis=1) / np.sqrt(cv.mse_path_.shape[1])
-    best = mse.argmin()
-    ok = np.where(mse <= mse[best] + se[best])[0]
-    alpha = cv.alphas_[ok].max()  # alphas_ are descending; largest alpha = sparsest
-    model = Lasso(alpha=alpha, max_iter=20000).fit(X, y, sample_weight=sample_weight)
-    return model, {"alpha": float(alpha), "alpha_min": float(cv.alphas_[best]), "cv_mse": float(mse[best])}
+    best = int(mse.argmin())
+    alpha_1se = float(cv.alphas_[mse <= mse[best] + se[best]].max())
+    alpha = float(cv.alphas_[best]) if rule == "min" else alpha_1se
+    model = ScaledLasso(alpha).fit(X, y) if standardize else Lasso(alpha=alpha, max_iter=20000).fit(X, y)
+    return model, {"alpha": alpha, "rule": rule, "alpha_min": float(cv.alphas_[best]),
+                   "alpha_1se": alpha_1se, "cv_mse": float(mse[best]), "nonzero": int((model.coef_ != 0).sum())}
+
+
+lasso_1se = lasso_cv  # backwards-compatible name
 
 
 # RuleFit
@@ -105,6 +138,7 @@ class RuleFit:
     max_depth: int = 3
     learning_rate: float = 0.05
     min_support: float = 0.02
+    rule: str = "min"
     random_state: int = 0
     rules_: list[Rule] = field(default_factory=list)
     linear_cols_: list[str] = field(default_factory=list)
@@ -130,7 +164,8 @@ class RuleFit:
         self.scale_ = {c: (float(X[c].mean()), float(X[c].std() / 0.4) or 1.0) for c in self.linear_cols_}
         D = self._design(X)
         if alpha is None:
-            self.lasso_, self.info_ = lasso_1se(D, y, folds)
+            # Rules are 0/1 and linear terms are pre-scaled (Friedman & Popescu), so no standardizing.
+            self.lasso_, self.info_ = lasso_cv(D, y, folds, rule=self.rule, standardize=False)
         else:
             self.lasso_, self.info_ = Lasso(alpha=alpha, max_iter=20000).fit(D, y), {"alpha": alpha}
         self.info_["n_candidate_rules"] = len(self.rules_)
@@ -157,6 +192,29 @@ def _spearman(a: np.ndarray, b: np.ndarray) -> float:
     if len(a) < 3 or np.std(a) == 0 or np.std(b) == 0:
         return np.nan
     return float(pd.Series(a).rank().corr(pd.Series(b).rank()))
+
+
+def pairwise_by_author(y: np.ndarray, pred: np.ndarray, authors: np.ndarray, min_gap: float = 0.1) -> pd.Series:
+    """Per-author pairwise accuracy (see `evaluate`), indexed by author."""
+    y, pred, authors = np.asarray(y), np.asarray(pred), np.asarray(authors)
+    out = {}
+    for a in np.unique(authors):
+        i = np.where(authors == a)[0]
+        dy = y[i][:, None] - y[i][None, :]
+        dp = pred[i][:, None] - pred[i][None, :]
+        mask = np.triu(np.abs(dy) >= min_gap, k=1)
+        if mask.any():
+            out[a] = float(((np.sign(dy) == np.sign(dp)) & (dp != 0))[mask].mean() + 0.5 * (dp == 0)[mask].mean())
+    return pd.Series(out)
+
+
+def bootstrap_ci(per_author: pd.Series, baseline: pd.Series | None = None, n: int = 2000, seed: int = 0) -> dict:
+    """95% CI of the mean over authors, resampling authors. With `baseline`, CI of the paired difference."""
+    s = per_author if baseline is None else (per_author - baseline.reindex(per_author.index))
+    v = s.dropna().to_numpy()
+    rng = np.random.default_rng(seed)
+    means = rng.choice(v, size=(n, len(v)), replace=True).mean(axis=1)
+    return {"mean": round(float(v.mean()), 4), "ci95": [round(float(q), 4) for q in np.quantile(means, [0.025, 0.975])]}
 
 
 def evaluate(y: np.ndarray, pred: np.ndarray, authors: np.ndarray, min_gap: float = 0.1) -> dict:

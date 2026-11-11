@@ -23,7 +23,12 @@ def load_bundle(path: Path = BUNDLE) -> dict:
 def build_row(bundle: dict, p_yes: dict[str, float], media: str, text: str) -> dict[str, float]:
     """Full input row: Jev features, known controls, training means for the rest."""
     row = dict(bundle["column_means"])
-    row.update({k: v for k, v in p_yes.items() if k in row and v is not None and not math.isnan(v)})
+    clean = {k: v for k, v in p_yes.items() if v is not None and not math.isnan(v)}
+    row.update({k: v for k, v in clean.items() if k in row})
+    for t, theme in bundle.get("themes", {}).items():  # theme score = mean P(yes) of its members
+        vals = [clean[m] for m in theme["members"] if m in clean]
+        if vals and t in row:
+            row[t] = sum(vals) / len(vals)
     if "ctl.log_words" in row:  # only when the models were trained with controls
         for m in MEDIA:
             row[f"ctl.media_{m}"] = float(media == m)

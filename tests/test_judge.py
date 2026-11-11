@@ -25,7 +25,7 @@ def test_question_is_noul_with_definition_and_judge_note():
 
 def test_state_has_post_only_and_no_performance_info():
     state = post_state(POST)
-    assert state == {"media_attached": "image", "post_text": POST["body"]}
+    assert state == {"post_text": POST["body"]}  # text only, no attached media
     assert "u1" not in json.dumps(state)
 
 

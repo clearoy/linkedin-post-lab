@@ -21,17 +21,18 @@ USD_PER_QUESTION = 6.3e-6
 
 JUDGE_NOTE = (
     "Judge only whether the post meets this definition, reading it literally and using only "
-    "the post's text and media type. Do not consider whether the post is good or how it might perform."
+    "the post's text. Do not consider whether the post is good or how it might perform."
 )
 
 DecideFn = Callable[..., dict]
 
 
 def post_state(post: dict, max_chars: int = 6000) -> dict:
+    """What Jev sees: the post text only. No attached-media information."""
     body = post["body"].strip()
     if len(body) > max_chars:
         body = body[:max_chars].rstrip() + " [...]"
-    return {"media_attached": post["media"], "post_text": body}
+    return {"post_text": body}
 
 
 def noul_question(feature: dict) -> dict:

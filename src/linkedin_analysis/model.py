@@ -48,6 +48,36 @@ def word_count(text: str) -> int:
     return len(text.split())
 
 
+# Themes: groups of features that tend to occur together
+
+
+def make_themes(P: pd.DataFrame, n_themes: int) -> dict[str, dict]:
+    """Cluster features by correlation of their P(yes) across posts.
+
+    Average-linkage clustering on 1 - correlation. Each theme is labeled by its
+    most central member (highest mean correlation with the other members).
+    Fit this on training posts only.
+    """
+    from sklearn.cluster import AgglomerativeClustering
+
+    corr = P.corr().fillna(0.0)
+    dist = (1.0 - corr).clip(lower=0.0).to_numpy()
+    labels = AgglomerativeClustering(n_clusters=n_themes, metric="precomputed", linkage="average").fit_predict(dist)
+    groups = [list(P.columns[labels == k]) for k in range(n_themes)]
+    groups.sort(key=len, reverse=True)
+    themes = {}
+    for i, members in enumerate(groups):
+        sub = corr.loc[members, members]
+        central = sub.mean().idxmax() if len(members) > 1 else members[0]
+        themes[f"theme.{i:02d}"] = {"members": members, "central": central}
+    return themes
+
+
+def theme_scores(P: pd.DataFrame, themes: dict[str, dict]) -> pd.DataFrame:
+    """Theme score = mean P(yes) of its member features."""
+    return pd.DataFrame({t: P[v["members"]].mean(axis=1) for t, v in themes.items()}, index=P.index)
+
+
 # Folds and the one-standard-error rule
 
 

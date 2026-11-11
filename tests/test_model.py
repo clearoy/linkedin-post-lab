@@ -86,3 +86,18 @@ def test_relaxed_lasso_keeps_k_features_unshrunk_plus_controls():
     authors = np.arange(n) // 10
     best, info = relaxed_lasso_cv(F, C, y, authors % 5, authors, max_k=5)
     assert info["k"] >= 2 and len(best.selected_) <= 5
+
+
+def test_themes_group_cooccurring_features():
+    from linkedin_analysis.model import make_themes, theme_scores
+
+    rng = np.random.default_rng(3)
+    a, b = rng.uniform(size=500), rng.uniform(size=500)
+    P = pd.DataFrame({"a1": a + rng.normal(0, .05, 500), "a2": a + rng.normal(0, .05, 500),
+                      "b1": b + rng.normal(0, .05, 500), "b2": b + rng.normal(0, .05, 500)}).clip(0, 1)
+    themes = make_themes(P, 2)
+    groups = sorted(sorted(v["members"]) for v in themes.values())
+    assert groups == [["a1", "a2"], ["b1", "b2"]]
+    scores = theme_scores(P, themes)
+    t = next(k for k, v in themes.items() if "a1" in v["members"])
+    np.testing.assert_allclose(scores[t], P[["a1", "a2"]].mean(axis=1))

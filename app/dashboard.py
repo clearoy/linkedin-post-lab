@@ -87,6 +87,8 @@ def fmt_x(lift: float) -> str:
 def evaluate_tab() -> None:
     b = bundle()
     questions = {f["id"]: f["question"] for f in b["features"]}
+    themes = b.get("themes", {})
+    questions.update({t: v["label"] for t, v in themes.items()})
     m = b["metrics"]
 
     st.subheader("Evaluate a draft post")
@@ -95,16 +97,14 @@ def evaluate_tab() -> None:
         f"${len(b['features']) * judge.USD_PER_QUESTION:.3f} per post). Two models trained on real posts turn "
         "those scores into an expected result **relative to the author's usual post**, so it applies to any account size."
     )
-    left, right = st.columns([3, 1])
+    left, right = st.columns([4, 1])
     text = left.text_area("Post text", height=260, placeholder="Paste a LinkedIn post draft…")
-    media = right.selectbox("Attached media", ["text", *MEDIA],
-                            help="Passed to Jev only, the same way training posts were scored. "
-                                 "The models use content features only, not media.")
+    right.caption("Text only: attached media is not used anywhere.")
     go = right.button("Evaluate with Jev", type="primary", disabled=not text.strip(), use_container_width=True)
 
     if go:
         client = jev()
-        post = {"urn": "draft", "media": media, "body": text}
+        post = {"urn": "draft", "media": "text", "body": text}  # Jev sees only the text
         with st.spinner("Asking Jev…"):
             try:
                 rows, skipped = judge.judge(client.decide, [post], b["features"], workers=8)
@@ -114,14 +114,14 @@ def evaluate_tab() -> None:
         if skipped:
             st.error(f"Session spending cap (${MAX_COST_PER_SESSION:.2f}) reached. Restart the app to reset it.")
             return
-        st.session_state["result"] = {"rows": rows, "media": media, "text": text,
+        st.session_state["result"] = {"rows": rows, "text": text,
                                       "spent": client.usage.cost_usd}
 
     result = st.session_state.get("result")
     if not result:
         return
     p_yes = {r["feature_id"]: r["p_yes"] for r in result["rows"]}
-    row = build_row(b, p_yes, result["media"], result["text"])
+    row = build_row(b, p_yes, "text", result["text"])
     lin_pred, contrib = predict_linear(b, row)
     rf_pred, fired = predict_rulefit(b, row)
 
@@ -163,6 +163,13 @@ def evaluate_tab() -> None:
     else:
         st.write("No rules fire for this post.")
 
+    if themes:
+        with st.expander(f"What each of the {len(themes)} themes contains"):
+            for t, v in themes.items():
+                score = row.get(t)
+                st.markdown(f"**{v['label']}** — this post: {score:.2f}" if score is not None else f"**{v['label']}**")
+                st.markdown("\n".join(f"- {q}" for q in v["member_questions"]))
+
     with st.expander(f"All {len(p_yes)} Jev answers"):
         table = pd.DataFrame([{"property": questions[k], "P(yes)": v, "dimension": k.split(".")[0]}
                               for k, v in p_yes.items()]).sort_values("P(yes)", ascending=False)
@@ -177,8 +184,8 @@ def pipeline_tab() -> None:
     labels = read_json(PROCESSED / "labels_summary.json") or {}
     splits = read_json(PROCESSED / "splits_summary.json") or {}
     disc = read_json(PROCESSED / "features" / "run_meta.json") or {}
-    jt = read_json(PROCESSED / "judgments_train" / "run_meta.json") or {}
-    jte = read_json(PROCESSED / "judgments_test" / "run_meta.json") or {}
+    jt = read_json(PROCESSED / "judgments_text_train" / "run_meta.json") or {}
+    jte = read_json(PROCESSED / "judgments_text_test" / "run_meta.json") or {}
     metrics = read_json(PROCESSED / "models" / "metrics.json") or {}
     data = metrics.get("data", {})
 
@@ -196,12 +203,15 @@ def pipeline_tab() -> None:
                          "(best vs worst, random order) and proposed neutral yes/no content properties; "
                          f"{disc.get('raw_proposals', '–')} proposals merged into **{disc.get('features', '–')} "
                          "features**. It never saw performance."),
-        ("5 · Judge", f"Jev 1.13 scored P(yes) for every feature on {jt.get('posts', 0) + jte.get('posts', 0):,} "
+        ("5 · Judge", f"Kept {jt.get('features', '–')} broadly applicable features (true in 5–95% of posts and "
+                      "for at least 20% of authors; attachment questions removed). Jev 1.13 read **the text only** "
+                      f"and scored P(yes) for each on {jt.get('posts', 0) + jte.get('posts', 0):,} "
                       f"posts ({jt.get('authors', '–')} train + {jte.get('authors', '–')} test authors) for "
                       f"${jt.get('usage', {}).get('cost_usd', 0) + jte.get('usage', {}).get('cost_usd', 0):.2f}."),
-        ("6 · Model", f"A sparse linear model (≤10 features) and RuleFit predict lift from "
-                      f"{data.get('features_used', '–')} **content features only**: no media, length, or posting-time "
-                      "inputs, and attachment questions excluded. Tuned with author-grouped CV, then tested once."),
+        ("6 · Model", f"Features that occur together were grouped into **{data.get('themes', '–')} themes** "
+                      "(score = average P(yes) of its questions). A sparse linear model (≤10 themes) and RuleFit "
+                      "predict lift from the themes, **content only**: no media, length, or posting time. "
+                      "Tuned with author-grouped CV, then tested once."),
     ]
     for title, body in steps:
         st.markdown(f"**{title}** — {body}")
@@ -233,7 +243,7 @@ def pipeline_tab() -> None:
         coefs = pd.read_csv(coefs_path)
         coefs = coefs[(coefs["coef"] != 0) & ~coefs["column"].str.startswith("ctl.")].head(12)
         if len(coefs):
-            st.markdown("#### Content properties the linear model keeps")
+            st.markdown("#### Content themes the linear model keeps")
             coefs["label"] = coefs["question"]
             lo, hi = min(coefs["effect_x"].min(), 1) - 0.05, max(coefs["effect_x"].max(), 1) + 0.05
             chart = alt.Chart(coefs).mark_bar().encode(

@@ -32,6 +32,8 @@ from linkedin_analysis.data import load_all  # noqa: E402
 from linkedin_analysis.model import (  # noqa: E402
     ATTACHMENT_FEATURES,
     RelaxedLasso,
+    make_themes,
+    theme_scores,
     RuleFit,
     ScaledLasso,
     bootstrap_ci,
@@ -50,6 +52,9 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--judgments", type=Path, nargs="+", required=True)
     p.add_argument("--bank", type=Path, default=PROCESSED / "features" / "feature_bank.json")
+    p.add_argument("--themes", type=int, default=0,
+                   help="group features into this many themes (by co-occurrence in train) and model the "
+                        "theme scores instead of single features; 0 = single features")
     p.add_argument("--controls", action="store_true",
                    help="also feed format/time controls (media, length, posting time) to the models; "
                         "off by default so the models use content only")
@@ -97,6 +102,14 @@ def main() -> None:
     ctl = controls_frame(df)
     ctl_cols = list(ctl.columns)
     df = pd.concat([df, ctl], axis=1)
+    themes = {}
+    if args.themes:
+        themes = make_themes(df.loc[train, keep], args.themes)
+        df = pd.concat([df, theme_scores(df[keep], themes)], axis=1)
+        for t, v in themes.items():
+            bank[t] = {"id": t, "question": f"Theme: {bank[v['central']]['question']}",
+                       "members": [bank[m]["question"] for m in v["members"]]}
+        member_features, keep = keep, list(themes)
     model_ctl = ctl_cols if args.controls else []  # the controls-only baseline below is a reference, not a model input
     cols = keep + model_ctl
 
@@ -163,6 +176,7 @@ def main() -> None:
                        "test_authors": int(te["author"].nunique()), "test_posts": len(te),
                        "features_scored": len(feat_cols), "features_used": len(keep),
                        "controls_in_models": bool(args.controls),
+                       "themes": len(themes),
                        "features_excluded_attachment": sorted(ATTACHMENT_FEATURES & set(feat_cols)),
                        "features_dropped_prevalence": dropped}
     metrics["linear_info"] = lasso_info
@@ -185,8 +199,11 @@ def main() -> None:
     (args.out / "metrics.json").write_text(json.dumps(metrics, indent=2))
 
     means = tr[cols].mean()
+    jev_features = member_features if themes else keep
     bundle = {
-        "features": [bank[c] | {"mean_p_yes_train": float(means[c])} for c in keep],
+        "features": [bank[c] | {"mean_p_yes_train": float(tr[c].mean())} for c in jev_features],
+        "themes": {t: {**v, "label": bank[t]["question"], "member_questions": bank[t]["members"]}
+                   for t, v in themes.items()},
         "column_means": {c: float(means[c]) for c in cols},
         "linear": {"intercept": float(intercept),
                    "coef": {c: float(v) for c, v in zip(cols, coef_full) if v != 0}},

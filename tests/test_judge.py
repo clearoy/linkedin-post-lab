@@ -47,7 +47,8 @@ def test_judge_batches_features_per_post_and_maps_keys_back():
         return response
 
     features = [feature(i) for i in range(5)]
-    rows = judge(fake, [POST, {**POST, "urn": "u2"}], features, features_per_call=2, workers=1)
+    rows, skipped = judge(fake, [POST, {**POST, "urn": "u2"}], features, features_per_call=2, workers=1)
+    assert skipped == 0
     assert len(calls) == 6  # 2 posts x 3 chunks
     assert sorted(calls)[0] == ["q000"] and ["q000", "q001"] in calls
     assert len(rows) == 10
@@ -68,3 +69,31 @@ def test_judge_validation_rejects_missing_answers():
 def test_question_keys_are_short_and_unique():
     keys = question_keys([feature(i) for i in range(12)])
     assert list(keys)[:2] == ["q000", "q001"] and len(set(keys)) == 12
+
+
+def test_budget_stop_keeps_finished_rows():
+    from linkedin_analysis.llm import BudgetExceeded
+
+    calls = []
+
+    def fake(state, questions, validate):
+        calls.append(1)
+        if len(calls) > 2:
+            raise BudgetExceeded("cap")
+        return {"answers": {k: {"type": "noul", "noul": 0.5} for k in questions}}
+
+    posts = [{**POST, "urn": f"u{i}"} for i in range(5)]
+    rows, skipped = judge(fake, posts, [feature(0)], workers=1)
+    assert len(rows) == 2 and skipped == 3
+
+
+def test_client_refuses_requests_after_cap(tmp_path):
+    import pytest as _pytest
+
+    from linkedin_analysis.llm import BudgetExceeded, DecisionsClient, LLMSettings
+
+    client = DecisionsClient(LLMSettings("openrouter", "k", "m", "https://example.invalid/api/v1"),
+                             cache_dir=tmp_path, max_cost_usd=1.0)
+    client.usage.cost_usd = 1.0
+    with _pytest.raises(BudgetExceeded):
+        client.decide({"post_text": "x"}, {"q000": {"type": "noul"}})

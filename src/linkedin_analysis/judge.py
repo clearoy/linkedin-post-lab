@@ -14,6 +14,10 @@ from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .discovery import batched
+from .llm import BudgetExceeded
+
+# Measured in the smoke test: about $0.0000062 per question (input-token priced).
+USD_PER_QUESTION = 6.3e-6
 
 JUDGE_NOTE = (
     "Judge only whether the post meets this definition, reading it literally and using only "
@@ -58,11 +62,13 @@ def answer_p_yes(answer: dict | None) -> tuple[float, str]:
 
 
 def judge(decide: DecideFn, posts: Sequence[dict], features: Sequence[dict],
-          features_per_call: int = 50, workers: int = 32, progress: Callable[[int, int], None] | None = None) -> list[dict]:
+          features_per_call: int = 50, workers: int = 32,
+          progress: Callable[[int, int], None] | None = None) -> tuple[list[dict], int]:
     """Score every post on every feature.
 
     Calls: len(posts) x ceil(len(features) / features_per_call), run `workers`
-    at a time. Returns long rows: urn, feature_id, p_yes, status.
+    at a time. Returns (long rows: urn, feature_id, p_yes, status; number of
+    requests skipped because the budget ran out).
     """
     chunks = batched(list(features), features_per_call)
 
@@ -84,10 +90,18 @@ def judge(decide: DecideFn, posts: Sequence[dict], features: Sequence[dict],
 
     jobs = [(p, c) for p in posts for c in chunks]
     rows: list[dict] = []
+    skipped = 0
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = [pool.submit(run, j) for j in jobs]
         for done, future in enumerate(as_completed(futures), 1):
-            rows += future.result()
+            try:
+                rows += future.result()
+            except BudgetExceeded:
+                skipped += 1
             if progress is not None:
                 progress(done, len(jobs))
-    return rows
+    return rows, skipped
+
+
+def estimate_cost(n_posts: int, n_features: int) -> float:
+    return n_posts * n_features * USD_PER_QUESTION

@@ -1,10 +1,13 @@
 """Score posts on every feature in a feature bank with Jev (OpenRouter decisions API).
 
 Usage:
-    uv run python scripts/judge_features.py --dry-run                          # print a request, no calls
-    uv run python scripts/judge_features.py --n-posts 3 \
-        --bank data/processed/features_smoke/feature_bank.json --out data/processed/judgments_smoke
-    uv run python scripts/judge_features.py                                     # every labeled post
+    uv run python scripts/judge_features.py --dry-run                          # request + cost estimate, no calls
+    uv run python scripts/judge_features.py --split train --n-authors 150      # small first run, whole authors
+    uv run python scripts/judge_features.py --max-cost 25                      # every labeled post
+
+Spending is capped by --max-cost (default $5): the run refuses to start if the
+estimate is over it, and stops sending requests once reported spend reaches it.
+Results finished before the stop are saved.
 
 Needs OPENROUTER_API_KEY in .env, data/processed/labels.parquet, and a
 feature bank from scripts/discover_features.py.
@@ -35,7 +38,10 @@ from linkedin_analysis.paths import PROCESSED  # noqa: E402
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--bank", type=Path, default=PROCESSED / "features" / "feature_bank.json")
-    p.add_argument("--n-posts", type=int, default=None, help="random sample of labeled posts (default: all)")
+    p.add_argument("--split", default="all", choices=["all", "train", "test"], help="which authors to score")
+    p.add_argument("--n-authors", type=int, default=None, help="random sample of whole authors (default: all)")
+    p.add_argument("--n-posts", type=int, default=None, help="random sample of posts, for smoke tests")
+    p.add_argument("--max-cost", type=float, default=5.0, help="hard spending cap in USD")
     p.add_argument("--max-features", type=int, default=None, help="first N features of the bank (default: all)")
     p.add_argument("--features-per-call", type=int, default=50, help="questions per decisions request")
     p.add_argument("--workers", type=int, default=32, help="parallel requests")
@@ -49,12 +55,24 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     features = json.loads(args.bank.read_text())["features"][: args.max_features]
-    urns = pd.read_parquet(PROCESSED / "labels.parquet")["urn"]
-    posts = load_all().loc[lambda d: d["urn"].isin(urns), ["urn", "media", "body"]].sort_values("urn").to_dict("records")
+    labels = pd.read_parquet(PROCESSED / "labels.parquet")[["urn", "author"]]
+    if args.split != "all":
+        splits = pd.read_parquet(PROCESSED / "splits.parquet")
+        labels = labels[labels["author"].isin(splits.loc[splits["split"] == args.split, "author"])]
+    authors = sorted(labels["author"].unique())
+    if args.n_authors is not None:
+        authors = sorted(random.Random(args.seed).sample(authors, args.n_authors))
+        labels = labels[labels["author"].isin(authors)]
+    posts = (load_all().loc[lambda d: d["urn"].isin(labels["urn"]), ["urn", "media", "body"]]
+             .sort_values("urn").to_dict("records"))
     if args.n_posts is not None:
         posts = random.Random(args.seed).sample(posts, args.n_posts)
 
     n_calls = len(posts) * -(-len(features) // args.features_per_call)
+    estimate = judge.estimate_cost(len(posts), len(features))
+    print(f"{len(authors):,} authors, {len(posts):,} posts x {len(features)} features = "
+          f"{len(posts) * len(features):,} questions in {n_calls:,} requests. "
+          f"Estimated cost ${estimate:.2f} (cap ${args.max_cost:.2f}).")
     if args.dry_run:
         chunk = features[: args.features_per_call]
         keys = judge.question_keys(chunk)
@@ -64,11 +82,13 @@ def main() -> None:
             "questions": {k: judge.noul_question(f) for k, f in zip(keys, chunk)},
         }
         print(json.dumps(body, indent=2, ensure_ascii=False))
-        print(f"\n{len(posts):,} posts x {len(features)} features = {n_calls:,} requests "
-              f"({args.features_per_call} questions each, {args.workers} in parallel)")
         return
+    if estimate > args.max_cost:
+        sys.exit(f"Estimated ${estimate:.2f} is over the ${args.max_cost:.2f} cap. "
+                 "Use fewer --n-authors or raise --max-cost.")
 
-    client = DecisionsClient(LLMSettings.from_env("openrouter", model=args.model), max_connections=args.workers)
+    client = DecisionsClient(LLMSettings.from_env("openrouter", model=args.model),
+                             max_connections=args.workers, max_cost_usd=args.max_cost)
     print(f"Judging with {client.settings.model}: {n_calls:,} requests, {args.workers} in parallel ...")
     start = time.time()
     step = max(1, n_calls // 20)
@@ -78,8 +98,10 @@ def main() -> None:
             rate = done / (time.time() - start)
             print(f"  {done:,}/{total:,} requests  {rate:.1f}/s  eta {(total - done) / rate / 60:.1f} min", flush=True)
 
-    rows = judge.judge(client.decide, posts, features, args.features_per_call, args.workers, progress)
+    rows, skipped = judge.judge(client.decide, posts, features, args.features_per_call, args.workers, progress)
     elapsed = time.time() - start
+    if skipped:
+        print(f"Budget cap reached: {skipped:,} requests not sent. Saving partial results.")
 
     long = pd.DataFrame(rows)
     wide = long.pivot(index="urn", columns="feature_id", values="p_yes")[[f["id"] for f in features]].reset_index()
@@ -89,9 +111,12 @@ def main() -> None:
     meta = {
         "config": {k: str(v) for k, v in vars(args).items()},
         "model": client.settings.model,
+        "authors": len(authors),
         "posts": len(posts),
         "features": len(features),
         "requests": n_calls,
+        "requests_skipped_budget": skipped,
+        "estimated_cost_usd": round(estimate, 4),
         "judgments": len(long),
         "status": long["status"].value_counts().to_dict(),
         "seconds": round(elapsed, 1),

@@ -164,18 +164,26 @@ class LLMClient:
         return parse_json(response["choices"][0]["message"]["content"])
 
 
+class BudgetExceeded(RuntimeError):
+    """The spending cap was reached; no further paid requests are sent."""
+
+
 class DecisionsClient:
     """OpenRouter decisions endpoint (POST /api/alpha/decisions), with cache and retries.
 
     Uses one pooled HTTP connection set, so many threads can share it.
     Retries rate limits (429), server errors (5xx) and network errors with
     exponential backoff; other 4xx errors fail immediately.
+
+    `max_cost_usd` is a hard cap on reported spend: once reached, every
+    uncached request raises BudgetExceeded instead of being sent. Requests
+    already in flight finish, so the overshoot is at most one request per worker.
     """
 
     RETRY_STATUS = {408, 429, 500, 502, 503, 524, 529}
 
     def __init__(self, settings: LLMSettings, cache_dir: Path | None = CACHE_DIR, max_retries: int = 6,
-                 timeout: float = 120.0, max_connections: int = 64):
+                 timeout: float = 120.0, max_connections: int = 64, max_cost_usd: float | None = None):
         import httpx
 
         self.settings = settings
@@ -187,6 +195,7 @@ class DecisionsClient:
         )
         self.cache_dir = cache_dir
         self.max_retries = max_retries
+        self.max_cost_usd = max_cost_usd
         self.usage = Usage()
 
     def _cache_path(self, body: dict) -> Path | None:
@@ -206,6 +215,8 @@ class DecisionsClient:
         if path is not None and path.exists():
             self.usage.add(cached=True)
             return json.loads(path.read_text())["response"]
+        if self.max_cost_usd is not None and self.usage.cost_usd >= self.max_cost_usd:
+            raise BudgetExceeded(f"spent ${self.usage.cost_usd:.4f} of ${self.max_cost_usd:.2f} cap")
 
         last_error: Exception | None = None
         for attempt in range(self.max_retries):

@@ -33,12 +33,19 @@ linkedin-analysis/
 ├── src/linkedin_analysis/
 │   ├── paths.py             # folders, bands, GCS location
 │   ├── data.py              # load_posts / load_all
-│   └── labels.py            # author-relative labels
+│   ├── labels.py            # author-relative labels
+│   ├── llm.py               # DeepSeek / OpenRouter client, cache
+│   ├── discovery.py         # propose + merge properties (DeepSeek)
+│   ├── judge.py             # P(yes) per post x feature (Jev)
+│   └── prompts/             # all LLM prompts, as editable .md files
 ├── scripts/
-│   └── build_labels.py      # writes data/processed/labels.parquet
+│   ├── build_labels.py      # writes data/processed/labels.parquet
+│   ├── discover_features.py # writes data/processed/features/feature_bank.json
+│   └── judge_features.py    # writes data/processed/judgments/features.parquet
 ├── tests/                   # pytest tests (uv run pytest)
 └── docs/
-    └── labels.md            # label definitions, choices, checks
+    ├── labels.md            # label definitions, choices, checks
+    └── features.md          # feature discovery and judging method
 ```
 
 ## Pipeline
@@ -46,8 +53,8 @@ linkedin-analysis/
 | Step | Status | Command | Output |
 |---|---|---|---|
 | 1. Labels | done | `uv run python scripts/build_labels.py` | `data/processed/labels.parquet` |
-| 2. LLM feature discovery | todo | | |
-| 3. Feature judging | todo | | |
+| 2. LLM feature discovery (DeepSeek) | built, smoke-tested | `uv run python scripts/discover_features.py` | `data/processed/features/feature_bank.json` |
+| 3. Feature judging (Jev via OpenRouter) | built | `uv run python scripts/judge_features.py` | `data/processed/judgments/features.parquet` |
 | 4. Linear model / RuleFit | todo | | |
 | 5. Evaluate and polish new posts | todo | | |
 
@@ -72,6 +79,10 @@ The project uses [uv](https://docs.astral.sh/uv/).
 ```bash
 uv sync
 ```
+
+Put your API keys in `.env` (gitignored; template in `.env.example`):
+`DEEPSEEK_API_KEY` for discovery and `OPENROUTER_API_KEY` for the Jev judge.
+All LLM responses are cached in `data/processed/llm_cache/`, so re-runs are free.
 
 ```bash
 gcloud storage cp "gs://prototypes-498523-linkedin-post-model/2026-10-19/posts/*.parquet" data/raw/

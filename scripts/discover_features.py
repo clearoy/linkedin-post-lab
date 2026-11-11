@@ -68,7 +68,9 @@ def main() -> None:
     proposals = discovery.discover(
         client.chat_json, pairs, args.pairs_per_batch, args.n_properties, args.temperature, args.workers
     )
-    print(f"  {len(proposals)} raw proposals. Merging ...")
+    print(f"  {len(proposals)} raw proposals. Tagging dimensions ...")
+    proposals = discovery.tag(client.chat_json, proposals, workers=args.workers)
+    print("  Merging ...")
     bank = discovery.merge(client.chat_json, proposals, args.max_per_merge, args.workers)
 
     args.out.mkdir(parents=True, exist_ok=True)
@@ -82,6 +84,7 @@ def main() -> None:
         "authors": len({p["author"] for p in pairs}),
         "raw_proposals": len(proposals),
         "raw_with_lint_issues": sum(bool(p["lint"]) for p in proposals),
+        "raw_by_dimension": pd.Series([p["dimension"] for p in proposals]).value_counts().to_dict(),
         "features": len(bank["features"]),
         "features_with_lint_issues": sum(bool(f["lint"]) for f in bank["features"]),
         "dropped": len(bank["dropped"]),

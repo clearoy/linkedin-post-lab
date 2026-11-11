@@ -85,6 +85,10 @@ class Usage:
         return {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
 
 
+class TruncatedResponse(RuntimeError):
+    """The reply hit max_tokens. Retrying the same request will not help."""
+
+
 class LLMClient:
     """Chat completions with a request-hash disk cache.
 
@@ -123,6 +127,12 @@ class LLMClient:
         for attempt in range(self.max_retries):
             try:
                 response = self.client.chat.completions.create(**request).model_dump()
+                choice = response["choices"][0]
+                if choice.get("finish_reason") == "length" and validate is not None:
+                    raise TruncatedResponse(
+                        f"reply hit max_tokens={request.get('max_tokens')} "
+                        f"(usage {response.get('usage')}); reasoning counts toward it, so raise max_tokens"
+                    )
                 if validate is not None:
                     validate(response)
                 self.usage.add(cached=False, usage=response.get("usage"))
@@ -130,12 +140,14 @@ class LLMClient:
                     path.parent.mkdir(parents=True, exist_ok=True)
                     path.write_text(json.dumps({"request": request, "response": response}))
                 return response
+            except TruncatedResponse:
+                raise
             except Exception as e:  # network errors, rate limits, invalid output
                 last_error = e
                 time.sleep(2**attempt)
         raise RuntimeError(f"LLM call failed after {self.max_retries} attempts: {last_error}") from last_error
 
-    def chat_json(self, system: str, user: str, temperature: float = 0.0, max_tokens: int = 8000) -> dict:
+    def chat_json(self, system: str, user: str, temperature: float = 0.0, max_tokens: int = 32000) -> dict:
         """Chat call that returns the reply parsed as a JSON object."""
         request = {
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],

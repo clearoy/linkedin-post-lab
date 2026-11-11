@@ -12,6 +12,8 @@ from linkedin_analysis.discovery import (
     merge,
     merge_system_prompt,
     sample_pairs,
+    tag,
+    tag_system_prompt,
 )
 
 
@@ -38,7 +40,10 @@ def prop(name: str, dimension: str = "opening", **kw) -> dict:
 def test_system_prompts_render_fully():
     s = discover_system_prompt(15)
     assert "$" not in s and "exactly 15 properties" in s
-    assert all(f"`{d}`" in s for d in DIMENSIONS)
+    assert not any(f"`{d}`" in s for d in DIMENSIONS)  # discovery is not steered by categories
+    assert '"dimension"' not in s
+    t = tag_system_prompt()
+    assert "$" not in t and all(f"`{d}`" in t for d in DIMENSIONS)
     assert "$" not in merge_system_prompt("opening")
 
 
@@ -85,6 +90,8 @@ def test_lint_flags_evaluative_and_structural_problems():
     issues = lint_property({**prop("x"), "question": "Is the hook strong?", "dimension": "vibes"})
     assert any("evaluative" in i for i in issues)
     assert any("unknown dimension" in i for i in issues)
+    raw = {k: v for k, v in prop("x").items() if k != "dimension"}
+    assert lint_property(raw, check_dimension=False) == []
     assert lint_property({**prop("x"), "question": "Hook present"}) == ["question does not end with '?'"]
 
 
@@ -100,8 +107,29 @@ def test_discover_collects_and_cleans_proposals():
     out = discover(fake, pairs, pairs_per_batch=2, workers=1)
     assert len(out) == 4  # 2 batches x 2 valid proposals
     assert {p["id"] for p in out} == {"b000-p00", "b000-p01", "b001-p00", "b001-p01"}
-    assert {p["dimension"] for p in out} == {"opening", "other"}
+    assert all("dimension" not in p for p in out)  # assigned later by tag()
     assert out[0]["pair_ids"] == ["pair0000", "pair0001"]
+
+
+# Tag
+
+
+def test_tag_assigns_dimensions_and_defaults_to_other():
+    raw = [{**prop(f"p{i}"), "id": f"b{i:03d}-p00"} for i in range(5)]
+    for r in raw:
+        del r["dimension"]
+    seen = []
+
+    def fake(system, user, temperature):
+        ids = [x["id"] for x in json.loads(user)]
+        seen.append(ids)
+        return {"dimensions": {ids[0]: "topic", ids[-1]: "made_up"}}
+
+    out = tag(fake, raw, per_call=2, workers=1)
+    assert seen == [["b000-p00", "b001-p00"], ["b002-p00", "b003-p00"], ["b004-p00"]]
+    # last chunk has one id, so the fake tags it "made_up" -> other
+    assert [p["dimension"] for p in out] == ["topic", "other", "topic", "other", "other"]
+    assert "dimension" not in raw[0]  # input is not modified
 
 
 # Merge

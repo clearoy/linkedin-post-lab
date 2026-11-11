@@ -24,9 +24,7 @@ You are not told how any post performed, and you must not guess. Do not decide w
 
 Within each pair, compare the two posts closely. Because the author is the same, what differs between them is about the content. Also propose properties that vary across pairs.
 
-Spread your properties over these dimensions, and use exactly one of these values for `dimension`:
-
-$dimensions
+Report the differences you actually see, wherever they are: in what the post says, how it is built, how it sounds, or what it asks of the reader. There is no checklist of categories to fill. If several of the most visible differences are of the same kind, propose several properties of that kind. Prefer properties a reader would notice over generic ones that could be written without reading these posts.
 
 ## Output
 
@@ -37,7 +35,6 @@ Return a JSON object with exactly $n_properties properties, each different from 
   "properties": [
     {
       "name": "short_snake_case_name",
-      "dimension": "one of the dimensions above",
       "question": "Yes/no question about a single post?",
       "definition": "One sentence defining when the answer is yes.",
       "yes_example": "Short invented snippet where the answer is yes.",

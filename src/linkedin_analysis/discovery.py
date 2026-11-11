@@ -1,10 +1,12 @@
 """LLM feature discovery: propose neutral, observable post properties.
 
-Two stages:
+Three stages:
   1. discover: show the LLM batches of same-author post pairs (one from the
      author's top third by lift, one from the bottom third, in random order,
-     with no performance information) and ask for properties that vary.
-  2. merge: group the raw proposals by dimension and have the LLM merge
+     with no performance information) and ask for properties that vary. No
+     categories are given, so the LLM reports whatever differences it sees.
+  2. tag: assign each raw proposal a dimension, only to group near-duplicates.
+  3. merge: within each dimension, have the LLM merge
      duplicates into one canonical feature bank, keeping track of how many
      independent proposals support each feature.
 
@@ -39,7 +41,9 @@ DIMENSIONS: dict[str, str] = {
     "language_style": "word choice, jargon, buzzwords, readability, rhetorical devices",
 }
 
+PROPOSAL_FIELDS = ("name", "question", "definition", "yes_example", "no_example")
 FIELDS = ("name", "dimension", "question", "definition", "yes_example", "no_example")
+OTHER = "other"
 
 EVALUATIVE = re.compile(
     r"\b(good|bad|strong|weak|compelling|engaging|effective|clear|clearly|interesting|"
@@ -62,9 +66,11 @@ def dimensions_block() -> str:
 
 
 def discover_system_prompt(n_properties: int) -> str:
-    return load_prompt("discover_system").substitute(
-        dimensions=dimensions_block(), n_properties=n_properties
-    )
+    return load_prompt("discover_system").substitute(n_properties=n_properties)
+
+
+def tag_system_prompt() -> str:
+    return load_prompt("tag_system").substitute(dimensions=dimensions_block())
 
 
 def merge_system_prompt(dimension: str) -> str:
@@ -142,10 +148,14 @@ def discover_user_message(pairs: Sequence[dict]) -> str:
 # Validation
 
 
-def lint_property(p: dict) -> list[str]:
-    """Return problems with a proposed property. Empty list = clean."""
-    issues = [f"missing {f}" for f in FIELDS if not str(p.get(f, "")).strip()]
-    if p.get("dimension") not in DIMENSIONS:
+def lint_property(p: dict, check_dimension: bool = True) -> list[str]:
+    """Return problems with a property. Empty list = clean.
+
+    Raw proposals have no dimension yet, so lint them with check_dimension=False.
+    """
+    fields = FIELDS if check_dimension else PROPOSAL_FIELDS
+    issues = [f"missing {f}" for f in fields if not str(p.get(f, "")).strip()]
+    if check_dimension and p.get("dimension") not in (*DIMENSIONS, OTHER):
         issues.append(f"unknown dimension {p.get('dimension')!r}")
     if not str(p.get("question", "")).strip().endswith("?"):
         issues.append("question does not end with '?'")
@@ -187,12 +197,10 @@ def discover(
         for j, p in enumerate(reply.get("properties", [])):
             if not isinstance(p, dict):
                 continue
-            p = {f: str(p.get(f, "")).strip() for f in FIELDS}
-            lint = lint_property(p)
+            p = {f: str(p.get(f, "")).strip() for f in PROPOSAL_FIELDS}
+            lint = lint_property(p, check_dimension=False)
             if any(i.startswith("missing") for i in lint):
                 continue
-            if p["dimension"] not in DIMENSIONS:
-                p["dimension"] = "other"
             out.append(
                 {"id": f"b{b:03d}-p{j:02d}", "batch": b, "pair_ids": [x["pair_id"] for x in batch], **p, "lint": lint}
             )
@@ -203,7 +211,26 @@ def discover(
     return [p for batch in results for p in batch]
 
 
-# Stage 2: merge
+# Stage 2: tag
+
+
+def tag(chat_json: ChatFn, proposals: Sequence[dict], per_call: int = 150, workers: int = 8) -> list[dict]:
+    """Return copies of the proposals with a `dimension`, used only for grouping.
+
+    Ids the LLM skips or tags with an unknown dimension go to `other`.
+    """
+    system = tag_system_prompt()
+
+    def run(chunk: list[dict]) -> dict:
+        payload = [{"id": p["id"], "question": p["question"], "definition": p["definition"]} for p in chunk]
+        return chat_json(system, json.dumps(payload, indent=1, ensure_ascii=False), temperature=0.0).get("dimensions", {})
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        tags = {k: v for d in pool.map(run, batched(proposals, per_call)) for k, v in d.items()}
+    return [{**p, "dimension": tags.get(p["id"]) if tags.get(p["id"]) in DIMENSIONS else OTHER} for p in proposals]
+
+
+# Stage 3: merge
 
 
 def _merge_call(chat_json: ChatFn, dimension: str, items: Sequence[dict]) -> tuple[list[dict], list[dict]]:
@@ -251,7 +278,7 @@ def merge_dimension(chat_json: ChatFn, dimension: str, items: Sequence[dict], ma
 
 
 def merge(chat_json: ChatFn, proposals: Sequence[dict], max_per_call: int = 120, workers: int = 8) -> dict:
-    """Merge raw proposals into a feature bank.
+    """Merge tagged proposals (see `tag`) into a feature bank.
 
     Each feature gets `support` (raw proposals merged into it) and
     `batch_support` (distinct discovery batches that proposed it), a rough

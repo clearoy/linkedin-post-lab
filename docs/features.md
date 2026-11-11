@@ -13,7 +13,8 @@ posts + feature_bank ──► judge_features.py (Jev) ──► features.parque
 ## Stage 1: discovery
 
 Code: [`discovery.py`](../src/linkedin_analysis/discovery.py),
-prompts [`discover_system.md`](../src/linkedin_analysis/prompts/discover_system.md) and
+prompts [`discover_system.md`](../src/linkedin_analysis/prompts/discover_system.md),
+[`tag_system.md`](../src/linkedin_analysis/prompts/tag_system.md) and
 [`merge_system.md`](../src/linkedin_analysis/prompts/merge_system.md).
 
 1. **Sample same-author pairs.** Each pair is one post from the author's `top`
@@ -33,11 +34,19 @@ prompts [`discover_system.md`](../src/linkedin_analysis/prompts/discover_system.
    It also states that properties which might help, hurt, or do nothing are
    equally useful, and that the LLM must not guess which. Each property
    carries a definition and invented yes/no examples.
+
+   **No categories are given.** An earlier version listed 14 dimensions, and
+   DeepSeek returned almost exactly one property per dimension, filling a
+   checklist instead of reporting what differed. The prompt now asks for the
+   differences it actually sees, several of the same kind if that is what
+   stands out.
 3. **Lint.** Proposals with missing fields are dropped. Evaluative words (strong,
    engaging, compelling and so on) are flagged in `lint` for the merge step to
    fix.
-4. **Merge.** Proposals are grouped by dimension (14 fixed dimensions) and
-   DeepSeek merges duplicates at temperature 0. It enforces the rules again,
+4. **Tag.** A separate DeepSeek call at temperature 0 assigns each proposal to
+   one of 14 dimensions, or `other`. This is used only to group likely
+   duplicates for merging, never to steer discovery.
+5. **Merge.** Within each dimension, DeepSeek merges duplicates at temperature 0. It enforces the rules again,
    rewriting or dropping violations, and must account for every input id.
    Large dimensions are merged in chunks, and the chunk results are merged again.
    Each feature records `support` (raw proposals merged into it) and
@@ -49,17 +58,34 @@ only for later analysis.
 
 ## Stage 2: judging
 
-Code: [`judge.py`](../src/linkedin_analysis/judge.py),
-prompts [`judge_system.md`](../src/linkedin_analysis/prompts/judge_system.md) and
-[`judge_batch_system.md`](../src/linkedin_analysis/prompts/judge_batch_system.md).
+Code: [`judge.py`](../src/linkedin_analysis/judge.py), client `DecisionsClient` in
+[`llm.py`](../src/linkedin_analysis/llm.py).
 
-Jev reads one post and decides only whether each property is present, as
-defined. It is told not to consider quality or performance.
+Jev (`typesafe/jev-1.13`) is a *decisions* model. It is only reachable through
+OpenRouter's `POST /api/alpha/decisions`, not through chat completions. Each
+request carries:
 
-| Mode | Calls | How P(yes) is computed |
-|---|---|---|
-| `logprob` (default) | posts × features | One Yes/No question per call. P(yes) = P(Yes tokens) / (P(Yes) + P(No)) from the first token's top logprobs. Falls back to 1/0 from the text when the provider returns no logprobs (`method = text`). |
-| `batch` | posts × ⌈features / 25⌉ | Several properties per call. Jev returns a probability for each as JSON. Much cheaper, less calibrated. |
+- `state`: the post, `{"media_attached": ..., "post_text": ...}`. No author,
+  reactions, or labels.
+- `questions`: a chunk of features (default 50), each a `noul` (yes/no)
+  question:
+  - `instructions`: the feature's question, plus a note to judge only whether
+    the definition is met, read literally, without considering quality or
+    performance;
+  - `criteria.true`: the definition and the yes example;
+  - `criteria.false`: "does not meet that definition" and the no example.
 
-The post comes before the question in each message, so providers that cache
-prompts can reuse it across that post's features.
+Jev returns `answers[key].noul`, which is P(true), for every question. Refusals
+or missing answers are stored as NaN with their `status`.
+
+**Speed.** A single request answers many features for one post, so a full run
+needs posts × ⌈features / 50⌉ requests. They run 32 at a time on a pooled HTTP
+client, with retries and backoff on 429/5xx. Measured on 60 posts × 26
+features: 60 requests in 1.6 s (about 1,000 judgments per second), about
+$0.00016 per request. Responses are cached, so re-runs are free.
+
+**Why not chat completions?** The first version sent one Yes/No question per
+call to `typesafe/jev-router` and read logprobs. The router sent each call to a
+different backend (GPT-6-luna, GPT-6.1-sol, Gemini 3.8 Flash, DeepSeek V4.1
+Flash), and most returned no logprobs. The result was mixed judges and hard
+0/1 answers, and it was not Jev.

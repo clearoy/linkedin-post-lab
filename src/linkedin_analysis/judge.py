@@ -1,148 +1,93 @@
 """Jev judge: P(yes) that a post has each feature from the feature bank.
 
-The judge only decides whether a property is present. It never sees
-performance and is told not to consider it.
+Uses OpenRouter's decisions endpoint, the only way to call Jev. Each request
+sends one post as `state` and a chunk of features as `noul` (yes/no)
+questions, and Jev returns P(true) for each. One request covers many
+features, and requests run in parallel, which is what makes this fast.
 
-Two modes:
-  logprob  one Yes/No question per call; P(yes) comes from the probabilities
-           of the first answer token (normalized over Yes and No). Most precise,
-           one call per post x feature.
-  batch    one call per post and chunk of features; the model returns a
-           probability for each feature as JSON. Far fewer calls, less
-           calibrated.
+The judge only decides whether a property is present as defined. It never
+sees performance and each question tells it not to consider quality.
 """
 
 import math
 from collections.abc import Callable, Sequence
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from .discovery import batched, format_post, load_prompt
-from .llm import parse_json
+from .discovery import batched
 
-YES = {"yes", "y"}
-NO = {"no", "n"}
+JUDGE_NOTE = (
+    "Judge only whether the post meets this definition, reading it literally and using only "
+    "the post's text and media type. Do not consider whether the post is good or how it might perform."
+)
 
-
-def judge_system_prompt() -> str:
-    return load_prompt("judge_system").template
-
-
-def judge_batch_system_prompt() -> str:
-    return load_prompt("judge_batch_system").template
+DecideFn = Callable[..., dict]
 
 
-def post_block(media: str, body: str) -> str:
-    return f"<post>\n{format_post(media, body, max_chars=6000)}\n</post>"
+def post_state(post: dict, max_chars: int = 6000) -> dict:
+    body = post["body"].strip()
+    if len(body) > max_chars:
+        body = body[:max_chars].rstrip() + " [...]"
+    return {"media_attached": post["media"], "post_text": body}
 
 
-def judge_user_message(post: dict, feature: dict) -> str:
-    # The post comes first so providers can cache the shared prefix across features.
-    return (
-        f"{post_block(post['media'], post['body'])}\n\n"
-        f"Question: {feature['question']}\n"
-        f"Definition of yes: {feature['definition']}\n"
-        f"Example of yes: {feature['yes_example']}\n"
-        f"Example of no: {feature['no_example']}\n\n"
-        "Answer Yes or No."
-    )
+def noul_question(feature: dict) -> dict:
+    """A feature as a decisions `noul` (yes/no) question."""
+    return {
+        "type": "noul",
+        "instructions": f"{feature['question']} {JUDGE_NOTE}",
+        "criteria": {
+            "true": f"{feature['definition']} Example: {feature['yes_example']}",
+            "false": f"The post does not meet that definition. Example: {feature['no_example']}",
+        },
+    }
 
 
-def judge_batch_user_message(post: dict, features: Sequence[dict]) -> str:
-    lines = [post_block(post["media"], post["body"]), "", "Properties:"]
-    for f in features:
-        lines.append(
-            f"- id: {f['id']}\n  question: {f['question']}\n  definition of yes: {f['definition']}"
-            f"\n  example of yes: {f['yes_example']}\n  example of no: {f['no_example']}"
-        )
-    return "\n".join(lines)
+def question_keys(features: Sequence[dict]) -> dict[str, str]:
+    """Short, safe question keys (q000, q001, ...) mapped to feature ids."""
+    return {f"q{i:03d}": f["id"] for i, f in enumerate(features)}
 
 
-def p_yes_from_response(response: dict) -> tuple[float, str, str]:
-    """Return (p_yes, method, answer_text) from a chat completion dict.
+def answer_p_yes(answer: dict | None) -> tuple[float, str]:
+    """(p_yes, status) from one decisions answer. Refusals and gaps give NaN."""
+    if not answer or answer.get("type") != "noul":
+        return math.nan, (answer or {}).get("type", "missing")
+    try:
+        return min(max(float(answer["noul"]), 0.0), 1.0), "ok"
+    except (KeyError, TypeError, ValueError):
+        return math.nan, "invalid"
 
-    Uses the first token's top logprobs when present. Falls back to the
-    answer text (1.0 or 0.0) when the provider returns no logprobs.
+
+def judge(decide: DecideFn, posts: Sequence[dict], features: Sequence[dict],
+          features_per_call: int = 50, workers: int = 32, progress: Callable[[int, int], None] | None = None) -> list[dict]:
+    """Score every post on every feature.
+
+    Calls: len(posts) x ceil(len(features) / features_per_call), run `workers`
+    at a time. Returns long rows: urn, feature_id, p_yes, status.
     """
-    choice = response["choices"][0]
-    text = (choice["message"].get("content") or "").strip()
-    content = ((choice.get("logprobs") or {}).get("content")) or []
-    if content:
-        p_yes = p_no = 0.0
-        for alt in content[0].get("top_logprobs") or []:
-            token = alt["token"].strip().lower().strip(".,!\"'")
-            if token in YES:
-                p_yes += math.exp(alt["logprob"])
-            elif token in NO:
-                p_no += math.exp(alt["logprob"])
-        if p_yes + p_no > 0:
-            return p_yes / (p_yes + p_no), "logprob", text
-    word = text.lower().strip(".,!\"' ").split(" ")[0] if text else ""
-    if word in YES:
-        return 1.0, "text", text
-    if word in NO:
-        return 0.0, "text", text
-    return math.nan, "unparsed", text
+    chunks = batched(list(features), features_per_call)
 
-
-def judge_logprob(complete: Callable[[dict], dict], posts: Sequence[dict], features: Sequence[dict],
-                  workers: int = 16, reasoning: dict | None = None) -> list[dict]:
-    """One call per post x feature. Returns long rows: urn, feature_id, p_yes, method, answer."""
-    system = judge_system_prompt()
-
-    def run(job: tuple[dict, dict]) -> dict:
-        post, feature = job
-        request = {
-            "messages": [{"role": "system", "content": system},
-                         {"role": "user", "content": judge_user_message(post, feature)}],
-            "temperature": 0.0,
-            "max_tokens": 5,
-            "logprobs": True,
-            "top_logprobs": 10,
-        }
-        if reasoning is not None:
-            request["extra_body"] = {"reasoning": reasoning}
-        p, method, text = p_yes_from_response(complete(request))
-        return {"urn": post["urn"], "feature_id": feature["id"], "p_yes": p, "method": method, "answer": text}
-
-    jobs = [(p, f) for p in posts for f in features]
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        return list(pool.map(run, jobs))
-
-
-def judge_batch(complete: Callable[..., dict], posts: Sequence[dict], features: Sequence[dict],
-                features_per_call: int = 25, workers: int = 16, reasoning: dict | None = None) -> list[dict]:
-    """One call per post x chunk of features, verbalized probabilities."""
-    system = judge_batch_system_prompt()
-
-    def validate(response: dict, ids: list[str]) -> None:
-        answers = parse_json(response["choices"][0]["message"]["content"] or "").get("answers", {})
-        missing = [i for i in ids if i not in answers]
+    def validate(response: dict, keys: Sequence[str]) -> None:
+        missing = [k for k in keys if k not in response.get("answers", {})]
         if missing:
-            raise ValueError(f"answers missing for {missing[:3]}")
+            raise KeyError(f"answers missing for {missing[:3]}")
 
     def run(job: tuple[dict, list[dict]]) -> list[dict]:
         post, chunk = job
-        ids = [f["id"] for f in chunk]
-        request = {
-            "messages": [{"role": "system", "content": system},
-                         {"role": "user", "content": judge_batch_user_message(post, chunk)}],
-            "temperature": 0.0,
-            "max_tokens": 40 * len(chunk) + 200,
-            "response_format": {"type": "json_object"},
-        }
-        if reasoning is not None:
-            request["extra_body"] = {"reasoning": reasoning}
-        response = complete(request, validate=lambda r: validate(r, ids))
-        answers = parse_json(response["choices"][0]["message"]["content"])["answers"]
+        keys = question_keys(chunk)
+        questions = {k: noul_question(f) for k, f in zip(keys, chunk)}
+        response = decide(post_state(post), questions, validate=lambda r: validate(r, list(keys)))
         rows = []
-        for fid in ids:
-            try:
-                p = min(max(float(answers[fid]), 0.0), 1.0)
-            except (TypeError, ValueError):
-                p = math.nan
-            rows.append({"urn": post["urn"], "feature_id": fid, "p_yes": p, "method": "batch", "answer": str(answers[fid])})
+        for k, fid in keys.items():
+            p, status = answer_p_yes(response["answers"].get(k))
+            rows.append({"urn": post["urn"], "feature_id": fid, "p_yes": p, "status": status})
         return rows
 
-    jobs = [(p, chunk) for p in posts for chunk in batched(features, features_per_call)]
+    jobs = [(p, c) for p in posts for c in chunks]
+    rows: list[dict] = []
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        return [row for rows in pool.map(run, jobs) for row in rows]
+        futures = [pool.submit(run, j) for j in jobs]
+        for done, future in enumerate(as_completed(futures), 1):
+            rows += future.result()
+            if progress is not None:
+                progress(done, len(jobs))
+    return rows

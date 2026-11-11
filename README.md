@@ -36,7 +36,7 @@ linkedin-analysis/
 │   ├── labels.py            # author-relative labels
 │   ├── llm.py               # DeepSeek / OpenRouter client, cache
 │   ├── discovery.py         # propose + merge properties (DeepSeek)
-│   ├── judge.py             # P(yes) per post x feature (Jev)
+│   ├── judge.py             # P(yes) per post x feature (Jev decisions API)
 │   └── prompts/             # all LLM prompts, as editable .md files
 ├── scripts/
 │   ├── build_labels.py      # writes data/processed/labels.parquet
@@ -53,8 +53,8 @@ linkedin-analysis/
 | Step | Status | Command | Output |
 |---|---|---|---|
 | 1. Labels | done | `uv run python scripts/build_labels.py` | `data/processed/labels.parquet` |
-| 2. LLM feature discovery (DeepSeek) | built, smoke-tested | `uv run python scripts/discover_features.py` | `data/processed/features/feature_bank.json` |
-| 3. Feature judging (Jev via OpenRouter) | built | `uv run python scripts/judge_features.py` | `data/processed/judgments/features.parquet` |
+| 2. LLM feature discovery (DeepSeek) | smoke-tested | `uv run python scripts/discover_features.py` | `data/processed/features/feature_bank.json` |
+| 3. Feature judging (Jev via OpenRouter decisions) | smoke-tested | `uv run python scripts/judge_features.py` | `data/processed/judgments/features.parquet` |
 | 4. Linear model / RuleFit | todo | | |
 | 5. Evaluate and polish new posts | todo | | |
 

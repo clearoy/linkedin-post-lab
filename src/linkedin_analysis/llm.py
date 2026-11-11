@@ -3,6 +3,10 @@
 Two providers, configured in `.env` at the project root (see `.env.example`):
   deepseek    DEEPSEEK_API_KEY, DEEPSEEK_MODEL, DEEPSEEK_BASE_URL     (feature discovery)
   openrouter  OPENROUTER_API_KEY, JEV_MODEL, OPENROUTER_BASE_URL      (Jev judge)
+
+`LLMClient` calls chat completions (DeepSeek). `DecisionsClient` calls
+OpenRouter's decisions endpoint, the only way to reach Jev: it takes one
+`state` and many typed questions per request and returns probabilities.
 """
 
 import hashlib
@@ -23,7 +27,7 @@ CACHE_DIR = PROCESSED / "llm_cache"
 PROVIDERS = {
     # provider: (key var, model var, base url var, default model, default base url)
     "deepseek": ("DEEPSEEK_API_KEY", "DEEPSEEK_MODEL", "DEEPSEEK_BASE_URL", "deepseek-v4-pro", "https://api.deepseek.com"),
-    "openrouter": ("OPENROUTER_API_KEY", "JEV_MODEL", "OPENROUTER_BASE_URL", "typesafe/jev-router", "https://openrouter.ai/api/v1"),
+    "openrouter": ("OPENROUTER_API_KEY", "JEV_MODEL", "OPENROUTER_BASE_URL", "typesafe/jev-1.13", "https://openrouter.ai/api/v1"),
 }
 
 
@@ -77,8 +81,9 @@ class Usage:
             self.calls += 1
             self.cached += cached
             if not cached:
-                self.prompt_tokens += usage.get("prompt_tokens") or 0
-                self.completion_tokens += usage.get("completion_tokens") or 0
+                # chat completions use prompt/completion, decisions use input/output
+                self.prompt_tokens += usage.get("prompt_tokens") or usage.get("input_tokens") or 0
+                self.completion_tokens += usage.get("completion_tokens") or usage.get("output_tokens") or 0
                 self.cost_usd += usage.get("cost") or 0.0  # OpenRouter reports cost
 
     def to_dict(self) -> dict:
@@ -157,3 +162,70 @@ class LLMClient:
         }
         response = self.complete(request, validate=lambda r: parse_json(r["choices"][0]["message"]["content"] or ""))
         return parse_json(response["choices"][0]["message"]["content"])
+
+
+class DecisionsClient:
+    """OpenRouter decisions endpoint (POST /api/alpha/decisions), with cache and retries.
+
+    Uses one pooled HTTP connection set, so many threads can share it.
+    Retries rate limits (429), server errors (5xx) and network errors with
+    exponential backoff; other 4xx errors fail immediately.
+    """
+
+    RETRY_STATUS = {408, 429, 500, 502, 503, 524, 529}
+
+    def __init__(self, settings: LLMSettings, cache_dir: Path | None = CACHE_DIR, max_retries: int = 6,
+                 timeout: float = 120.0, max_connections: int = 64):
+        import httpx
+
+        self.settings = settings
+        self.url = settings.base_url.split("/api/")[0] + "/api/alpha/decisions"
+        self.http = httpx.Client(
+            headers={"Authorization": f"Bearer {settings.api_key}", "Content-Type": "application/json"},
+            timeout=timeout,
+            limits=httpx.Limits(max_connections=max_connections, max_keepalive_connections=max_connections),
+        )
+        self.cache_dir = cache_dir
+        self.max_retries = max_retries
+        self.usage = Usage()
+
+    def _cache_path(self, body: dict) -> Path | None:
+        if self.cache_dir is None:
+            return None
+        key = hashlib.sha256(json.dumps({"endpoint": "decisions", **body}, sort_keys=True).encode()).hexdigest()
+        return self.cache_dir / f"{key}.json"
+
+    def decide(self, state, questions: dict, validate=None) -> dict:
+        """Send one decisions request and return the response JSON."""
+        import random
+
+        import httpx
+
+        body = {"model": self.settings.model, "state": state, "questions": questions}
+        path = self._cache_path(body)
+        if path is not None and path.exists():
+            self.usage.add(cached=True)
+            return json.loads(path.read_text())["response"]
+
+        last_error: Exception | None = None
+        for attempt in range(self.max_retries):
+            try:
+                r = self.http.post(self.url, json=body)
+                if r.status_code != 200:
+                    error = RuntimeError(f"decisions HTTP {r.status_code}: {r.text[:500]}")
+                    if r.status_code not in self.RETRY_STATUS:
+                        raise error
+                    last_error = error
+                else:
+                    response = r.json()
+                    if validate is not None:
+                        validate(response)
+                    self.usage.add(cached=False, usage=response.get("usage"))
+                    if path is not None:
+                        path.parent.mkdir(parents=True, exist_ok=True)
+                        path.write_text(json.dumps({"request": body, "response": response}))
+                    return response
+            except (httpx.TransportError, ValueError, KeyError) as e:  # network, bad JSON, failed validation
+                last_error = e
+            time.sleep(min(2**attempt, 30) + random.random())
+        raise RuntimeError(f"decisions call failed after {self.max_retries} attempts: {last_error}") from last_error

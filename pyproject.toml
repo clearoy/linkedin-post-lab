@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Content-driven analysis of LinkedIn post performance"
 requires-python = ">=3.11"
 dependencies = [
+    "httpx>=0.28.1",
     "numpy>=2.0",
     "openai>=3.49.0",
     "pandas>=2.2",

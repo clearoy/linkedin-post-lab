@@ -3,95 +3,68 @@ import math
 
 import pytest
 
-from linkedin_analysis.judge import (
-    judge_batch,
-    judge_logprob,
-    judge_user_message,
-    p_yes_from_response,
-)
+from linkedin_analysis.judge import answer_p_yes, judge, noul_question, post_state, question_keys
 
 POST = {"urn": "u1", "media": "image", "body": "We shipped v2 today. What should we build next?"}
-FEATURE = {"id": "call_to_action.asks_question", "question": "Does the post ask readers a question?",
-           "definition": "Yes when the post directly asks readers something.",
-           "yes_example": "What do you think?", "no_example": "We shipped it."}
 
 
-def response(content: str, top: list[tuple[str, float]] | None = None) -> dict:
-    logprobs = None
-    if top is not None:
-        logprobs = {"content": [{"token": top[0][0], "logprob": math.log(top[0][1]),
-                                 "top_logprobs": [{"token": t, "logprob": math.log(p)} for t, p in top]}]}
-    return {"choices": [{"message": {"content": content}, "logprobs": logprobs}]}
+def feature(i: int) -> dict:
+    return {"id": f"call_to_action.f{i}", "question": f"Does the post do thing {i}?",
+            "definition": f"Yes when the post does thing {i}.", "yes_example": "What do you think?",
+            "no_example": "We shipped it."}
 
 
-# p_yes_from_response
+def test_question_is_noul_with_definition_and_judge_note():
+    q = noul_question(feature(1))
+    assert q["type"] == "noul"
+    assert "Does the post do thing 1?" in q["instructions"]
+    assert "Do not consider whether the post is good" in q["instructions"]
+    assert set(q["criteria"]) == {"true", "false"}
+    assert "Yes when the post does thing 1." in q["criteria"]["true"]
 
 
-def test_logprobs_are_normalized_over_yes_and_no():
-    p, method, _ = p_yes_from_response(response("Yes", [("Yes", 0.6), (" yes", 0.1), ("No", 0.2), ("Maybe", 0.1)]))
-    assert method == "logprob"
-    assert p == pytest.approx(0.7 / 0.9)
+def test_state_has_post_only_and_no_performance_info():
+    state = post_state(POST)
+    assert state == {"media_attached": "image", "post_text": POST["body"]}
+    assert "u1" not in json.dumps(state)
 
 
-def test_falls_back_to_text_without_logprobs():
-    assert p_yes_from_response(response("No.")) == (0.0, "text", "No.")
-    assert p_yes_from_response(response("Yes")) == (1.0, "text", "Yes")
-    p, method, _ = p_yes_from_response(response("I cannot tell"))
-    assert method == "unparsed" and math.isnan(p)
+def test_answer_parsing():
+    assert answer_p_yes({"type": "noul", "noul": 0.96}) == (0.96, "ok")
+    assert answer_p_yes({"type": "noul", "noul": 1.3}) == (1.0, "ok")
+    p, status = answer_p_yes({"type": "refusal"})
+    assert math.isnan(p) and status == "refusal"
+    assert answer_p_yes(None)[1] == "missing"
 
 
-# Prompts
-
-
-def test_user_message_has_post_then_question_and_no_performance_info():
-    msg = judge_user_message(POST, FEATURE)
-    assert msg.index("<post>") < msg.index("Question:")
-    assert FEATURE["definition"] in msg
-    for leak in ("reaction", "lift", "tier", "u1"):
-        assert leak not in msg.lower()
-
-
-# Modes
-
-
-def test_logprob_mode_sends_one_question_per_call():
-    requests = []
-
-    def fake(request):
-        requests.append(request)
-        return response("Yes", [("Yes", 0.9), ("No", 0.1)])
-
-    rows = judge_logprob(fake, [POST, {**POST, "urn": "u2"}], [FEATURE, {**FEATURE, "id": "f2"}], workers=1,
-                         reasoning={"effort": "minimal"})
-    assert len(rows) == len(requests) == 4
-    assert requests[0]["logprobs"] is True and requests[0]["temperature"] == 0
-    assert requests[0]["extra_body"] == {"reasoning": {"effort": "minimal"}}
-    assert {r["feature_id"] for r in rows} == {FEATURE["id"], "f2"}
-    assert all(r["p_yes"] == pytest.approx(0.9) for r in rows)
-
-
-def test_batch_mode_chunks_features_validates_and_clamps():
-    features = [{**FEATURE, "id": f"f{i}"} for i in range(5)]
+def test_judge_batches_features_per_post_and_maps_keys_back():
     calls = []
 
-    def fake(request, validate):
-        ids = [line.split("id: ")[1] for line in request["messages"][1]["content"].splitlines() if "- id: " in line]
-        calls.append(ids)
-        r = {"choices": [{"message": {"content": json.dumps({"answers": {i: 1.7 if i == "f0" else 0.25 for i in ids}})}}]}
-        validate(r)
-        return r
+    def fake(state, questions, validate):
+        calls.append(list(questions))
+        response = {"answers": {k: {"type": "noul", "noul": 0.1 * (int(k[1:]) + 1)} for k in questions}}
+        validate(response)
+        return response
 
-    rows = judge_batch(fake, [POST], features, features_per_call=2, workers=1)
-    assert calls == [["f0", "f1"], ["f2", "f3"], ["f4"]]
-    p = {r["feature_id"]: r["p_yes"] for r in rows}
-    assert p["f0"] == 1.0 and p["f3"] == 0.25
+    features = [feature(i) for i in range(5)]
+    rows = judge(fake, [POST, {**POST, "urn": "u2"}], features, features_per_call=2, workers=1)
+    assert len(calls) == 6  # 2 posts x 3 chunks
+    assert sorted(calls)[0] == ["q000"] and ["q000", "q001"] in calls
+    assert len(rows) == 10
+    p = {(r["urn"], r["feature_id"]): r["p_yes"] for r in rows}
+    assert p[("u1", "call_to_action.f0")] == pytest.approx(0.1)
+    assert p[("u2", "call_to_action.f3")] == pytest.approx(0.2)  # second in its chunk -> q001
+    assert p[("u2", "call_to_action.f4")] == pytest.approx(0.1)  # alone in its chunk -> q000
 
 
-def test_batch_validation_rejects_missing_answers():
-    def fake(request, validate):
-        r = {"choices": [{"message": {"content": json.dumps({"answers": {}})}}]}
-        validate(r)
-        return r
+def test_judge_validation_rejects_missing_answers():
+    def fake(state, questions, validate):
+        validate({"answers": {}})
 
-    with pytest.raises(ValueError, match="missing"):
-        judge_batch(fake, [POST], [FEATURE], workers=1)
+    with pytest.raises(KeyError, match="missing"):
+        judge(fake, [POST], [feature(0)], workers=1)
+
+
+def test_question_keys_are_short_and_unique():
+    keys = question_keys([feature(i) for i in range(12)])
+    assert list(keys)[:2] == ["q000", "q001"] and len(set(keys)) == 12

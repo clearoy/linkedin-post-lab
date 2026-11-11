@@ -1,8 +1,8 @@
-"""Score posts on every feature in a feature bank with Jev (via OpenRouter).
+"""Score posts on every feature in a feature bank with Jev (OpenRouter decisions API).
 
 Usage:
-    uv run python scripts/judge_features.py --dry-run                          # print a prompt, no calls
-    uv run python scripts/judge_features.py --n-posts 3 --max-features 5 \
+    uv run python scripts/judge_features.py --dry-run                          # print a request, no calls
+    uv run python scripts/judge_features.py --n-posts 3 \
         --bank data/processed/features_smoke/feature_bank.json --out data/processed/judgments_smoke
     uv run python scripts/judge_features.py                                     # every labeled post
 
@@ -10,15 +10,16 @@ Needs OPENROUTER_API_KEY in .env, data/processed/labels.parquet, and a
 feature bank from scripts/discover_features.py.
 
 Writes to --out (default data/processed/judgments/):
-    judgments.parquet  long: urn, feature_id, p_yes, method, answer
+    judgments.parquet  long: urn, feature_id, p_yes, status
     features.parquet   wide: one row per urn, one P(yes) column per feature
-    run_meta.json      config, counts, method breakdown, token usage and cost
+    run_meta.json      config, counts, timing, token usage and cost
 """
 
 import argparse
 import json
 import random
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))  # see README "Imports on this Mac"
@@ -27,24 +28,21 @@ import pandas as pd  # noqa: E402
 
 from linkedin_analysis import judge  # noqa: E402
 from linkedin_analysis.data import load_all  # noqa: E402
-from linkedin_analysis.llm import LLMClient, LLMSettings  # noqa: E402
+from linkedin_analysis.llm import DecisionsClient, LLMSettings  # noqa: E402
 from linkedin_analysis.paths import PROCESSED  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--bank", type=Path, default=PROCESSED / "features" / "feature_bank.json")
-    p.add_argument("--mode", choices=["logprob", "batch"], default="logprob")
     p.add_argument("--n-posts", type=int, default=None, help="random sample of labeled posts (default: all)")
     p.add_argument("--max-features", type=int, default=None, help="first N features of the bank (default: all)")
-    p.add_argument("--features-per-call", type=int, default=25, help="batch mode only")
-    p.add_argument("--reasoning-effort", default=None,
-                   help="OpenRouter reasoning effort to send, e.g. minimal or low (default: not sent)")
+    p.add_argument("--features-per-call", type=int, default=50, help="questions per decisions request")
+    p.add_argument("--workers", type=int, default=32, help="parallel requests")
     p.add_argument("--seed", type=int, default=0)
-    p.add_argument("--workers", type=int, default=16)
     p.add_argument("--model", default=None, help="override JEV_MODEL")
     p.add_argument("--out", type=Path, default=PROCESSED / "judgments")
-    p.add_argument("--dry-run", action="store_true", help="print the first prompt and the call count, then exit")
+    p.add_argument("--dry-run", action="store_true", help="print the first request body and the call count, then exit")
     return p.parse_args()
 
 
@@ -52,29 +50,36 @@ def main() -> None:
     args = parse_args()
     features = json.loads(args.bank.read_text())["features"][: args.max_features]
     urns = pd.read_parquet(PROCESSED / "labels.parquet")["urn"]
-    posts_df = load_all().loc[lambda d: d["urn"].isin(urns), ["urn", "media", "body"]].sort_values("urn")
-    posts = posts_df.to_dict("records")
+    posts = load_all().loc[lambda d: d["urn"].isin(urns), ["urn", "media", "body"]].sort_values("urn").to_dict("records")
     if args.n_posts is not None:
         posts = random.Random(args.seed).sample(posts, args.n_posts)
 
-    n_calls = len(posts) * (len(features) if args.mode == "logprob" else -(-len(features) // args.features_per_call))
+    n_calls = len(posts) * -(-len(features) // args.features_per_call)
     if args.dry_run:
-        if args.mode == "logprob":
-            system, user = judge.judge_system_prompt(), judge.judge_user_message(posts[0], features[0])
-        else:
-            system = judge.judge_batch_system_prompt()
-            user = judge.judge_batch_user_message(posts[0], features[: args.features_per_call])
-        print("=== SYSTEM ===\n" + system + "\n=== USER ===\n" + user)
-        print(f"\n{len(posts):,} posts x {len(features)} features = {n_calls:,} calls in {args.mode} mode")
+        chunk = features[: args.features_per_call]
+        keys = judge.question_keys(chunk)
+        body = {
+            "model": LLMSettings.from_env("openrouter").model if args.model is None else args.model,
+            "state": judge.post_state(posts[0]),
+            "questions": {k: judge.noul_question(f) for k, f in zip(keys, chunk)},
+        }
+        print(json.dumps(body, indent=2, ensure_ascii=False))
+        print(f"\n{len(posts):,} posts x {len(features)} features = {n_calls:,} requests "
+              f"({args.features_per_call} questions each, {args.workers} in parallel)")
         return
 
-    client = LLMClient(LLMSettings.from_env("openrouter", model=args.model))
-    reasoning = {"effort": args.reasoning_effort} if args.reasoning_effort else None
-    print(f"Judging with {client.settings.model} ({args.mode}): {n_calls:,} calls ...")
-    if args.mode == "logprob":
-        rows = judge.judge_logprob(client.complete, posts, features, args.workers, reasoning)
-    else:
-        rows = judge.judge_batch(client.complete, posts, features, args.features_per_call, args.workers, reasoning)
+    client = DecisionsClient(LLMSettings.from_env("openrouter", model=args.model), max_connections=args.workers)
+    print(f"Judging with {client.settings.model}: {n_calls:,} requests, {args.workers} in parallel ...")
+    start = time.time()
+    step = max(1, n_calls // 20)
+
+    def progress(done: int, total: int) -> None:
+        if done % step == 0 or done == total:
+            rate = done / (time.time() - start)
+            print(f"  {done:,}/{total:,} requests  {rate:.1f}/s  eta {(total - done) / rate / 60:.1f} min", flush=True)
+
+    rows = judge.judge(client.decide, posts, features, args.features_per_call, args.workers, progress)
+    elapsed = time.time() - start
 
     long = pd.DataFrame(rows)
     wide = long.pivot(index="urn", columns="feature_id", values="p_yes")[[f["id"] for f in features]].reset_index()
@@ -86,8 +91,10 @@ def main() -> None:
         "model": client.settings.model,
         "posts": len(posts),
         "features": len(features),
+        "requests": n_calls,
         "judgments": len(long),
-        "methods": long["method"].value_counts().to_dict(),
+        "status": long["status"].value_counts().to_dict(),
+        "seconds": round(elapsed, 1),
         "p_yes_mean_by_feature": long.groupby("feature_id")["p_yes"].mean().round(3).to_dict(),
         "usage": client.usage.to_dict(),
     }

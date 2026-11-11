@@ -1,0 +1,9 @@
+# Internal data: do not commit (see README)
+data/
+*.parquet
+*.npy
+
+.DS_Store
+__pycache__/
+.ipynb_checkpoints/
+.venv/

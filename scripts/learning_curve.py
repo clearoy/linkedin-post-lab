@@ -13,7 +13,7 @@ authors), so the sizes are directly comparable.
 Models:
   themes_linear   15 co-occurrence themes (>= 3 questions) -> relaxed lasso, <= 10 themes (the dashboard model)
   jev_ridge       ridge on all single Jev questions
-  jev_gbm         gradient-boosted trees on all single Jev questions
+  jev_gbm         gradient-boosted trees on all single Jev questions (number of trees chosen by author CV)
   tfidf_ridge     TF-IDF words + word pairs, ridge (no Jev needed)
 
 Writes data/processed/models/learning_curve.json (every run plus a summary).
@@ -30,7 +30,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))  # see READ
 
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
-from sklearn.ensemble import HistGradientBoostingRegressor  # noqa: E402
 from sklearn.feature_extraction.text import TfidfVectorizer  # noqa: E402
 from sklearn.linear_model import RidgeCV  # noqa: E402
 from sklearn.pipeline import make_pipeline  # noqa: E402
@@ -38,7 +37,7 @@ from sklearn.preprocessing import StandardScaler  # noqa: E402
 
 from linkedin_analysis.data import load_all  # noqa: E402
 from linkedin_analysis.model import (  # noqa: E402
-    ATTACHMENT_FEATURES, cv_splits, evaluate, make_themes, relaxed_lasso_cv, theme_scores,
+    ATTACHMENT_FEATURES, cv_splits, evaluate, gbm_cv, make_themes, relaxed_lasso_cv, theme_scores,
 )
 from linkedin_analysis.paths import PROCESSED  # noqa: E402
 
@@ -73,10 +72,8 @@ def jev_ridge(tr, te, q_cols, *_):
 
 
 def jev_gbm(tr, te, q_cols, *_):
-    m = HistGradientBoostingRegressor(max_depth=3, learning_rate=0.05, max_iter=300, min_samples_leaf=40,
-                                      l2_regularization=1.0, random_state=0)
-    m.fit(tr[q_cols].to_numpy(), tr["lift"].to_numpy())
-    return m.predict(te[q_cols].to_numpy()), {}
+    m, info = gbm_cv(tr[q_cols].to_numpy(), tr["lift"].to_numpy(), tr["fold"].to_numpy(), tr["author"].to_numpy())
+    return m.predict(te[q_cols].to_numpy()), {"n_iter": info["n_iter"]}
 
 
 def tfidf_ridge(tr, te, *_):

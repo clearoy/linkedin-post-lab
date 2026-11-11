@@ -232,6 +232,8 @@ def pipeline_tab() -> None:
     jdir = "judgments_full" if full else "judgments_text"
     jt = read_json(PROCESSED / f"{jdir}_train" / "run_meta.json") or {}
     jte = read_json(PROCESSED / f"{jdir}_test" / "run_meta.json") or {}
+    jev_cost = sum((read_json(PROCESSED / f"{d}_{s}" / "run_meta.json") or {}).get("usage", {}).get("cost_usd", 0)
+                   for d in ({"judgments_full", "judgments_text"} if full else {"judgments_text"}) for s in ("train", "test"))
     metrics = read_json(PROCESSED / "models" / "metrics.json") or {}
     data = metrics.get("data", {})
 
@@ -253,11 +255,13 @@ def pipeline_tab() -> None:
                       "for at least 20% of authors; attachment questions removed). Jev 1.13 read **the text only** "
                       f"and scored P(yes) for each on {jt.get('posts', 0) + jte.get('posts', 0):,} "
                       f"posts ({jt.get('authors', '–')} train + {jte.get('authors', '–')} test authors) for "
-                      f"${jt.get('usage', {}).get('cost_usd', 0) + jte.get('usage', {}).get('cost_usd', 0):.2f}."),
+                      f"${jev_cost:.2f} in total (answers from an earlier subset run were reused from cache)."),
         ("6 · Model", f"Questions that tend to be true together were grouped into **{data.get('themes', '–')} "
                       "themes** (checklists); themes with fewer than 3 questions were set aside as too niche. "
                       "A sparse linear model picks the themes that predict lift, **content only**: no media, length, "
-                      "or posting time. Tuned with author-grouped CV, then tested once."),
+                      "or posting time. Tuned with author-grouped CV. Caveat: the theme design (15 themes, ≥ 3 "
+                      "questions, ≤ 10 themes) was settled while looking at an earlier 45-author test sample, which is "
+                      "part of today's 165 test authors, so the test score may be slightly optimistic."),
     ]
     for title, body in steps:
         st.markdown(f"**{title}** — {body}")
@@ -270,19 +274,21 @@ def pipeline_tab() -> None:
     res = pd.DataFrame([{
         "model": names[k],
         "pairwise accuracy (test)": metrics[k]["test"]["pairwise_accuracy"],
-        "pairwise accuracy (CV)": metrics[k]["cv_train"]["pairwise_accuracy"],
-        "per-author Spearman (test)": metrics[k]["test"]["author_spearman"],
-        "vs format reference (95% CI)": (
+        "vs format reference (paired 95% CI)": (
             "—" if k == "controls" else
             "{mean:+.3f} [{lo:+.3f}, {hi:+.3f}]".format(mean=metrics[k]["test"]["gain_over_controls"]["mean"],
                                                         lo=metrics[k]["test"]["gain_over_controls"]["ci95"][0],
                                                         hi=metrics[k]["test"]["gain_over_controls"]["ci95"][1])),
+        "pairwise accuracy (CV)": metrics[k]["cv_train"]["pairwise_accuracy"],
+        "per-author Spearman (test)": metrics[k]["test"]["author_spearman"],
     } for k in names])
     st.dataframe(res, hide_index=True, use_container_width=True,
-                 column_config={c: st.column_config.NumberColumn(format="%.3f") for c in res.columns[1:4]})
+                 column_config={c: st.column_config.NumberColumn(format="%.3f") for c in res.columns
+                                if c.startswith(("pairwise", "per-author"))})
     st.caption("Pairwise accuracy: for two posts by the same author, how often the model ranks the one that did "
-               "better higher. 0.5 = chance. Both content-only models beat chance; content alone ranks posts about as "
-               "well as format alone (the reference row), and the difference is within noise at this sample size.")
+               "better higher. 0.5 = chance. The 'vs format reference' column compares each model with the format "
+               "reference on the same authors (paired). The sparse linear model on content themes is clearly better than format alone "
+               "(the range excludes 0); RuleFit's lead over format is within noise.")
 
     baselines_section(data)
     learning_curve_section()
@@ -312,16 +318,26 @@ def baselines_section(data: dict) -> None:
         if not r:
             continue
         ci = r["test"].get("pairwise_accuracy_ci95") or [None, None]
+        d = r["test"].get("diff_vs_current")
+        if d:
+            lo, hi = d["ci95"]
+            verdict = "no clear difference" if lo <= 0 <= hi else ("better" if lo > 0 else "worse")
+            if verdict != "no clear difference" and min(abs(lo), abs(hi)) < 0.002:
+                verdict += " (borderline)"
+            vs = f"{d['mean']:+.3f} [{lo:+.3f}, {hi:+.3f}] · {verdict}"
+        else:
+            vs = "—"
         rows.append({
             "model": label, "input": inputs,
             "train data": (f"{r.get('train_authors', '–')} authors ({r.get('train_posts', 0):,} posts)"
                            if trained == "all" else subset),
             "CV": r["cv_train"]["pairwise_accuracy"], "test": r["test"]["pairwise_accuracy"],
-            "low": ci[0], "high": ci[1],
+            "low": ci[0], "high": ci[1], "vs current model (paired 95% CI)": vs,
         })
     df = pd.DataFrame(rows).sort_values("test", ascending=False)
     df["test 95% CI"] = df.apply(lambda r: f"[{r['low']:.3f}, {r['high']:.3f}]" if r["low"] is not None else "—", axis=1)
-    st.dataframe(df[["model", "input", "train data", "CV", "test", "test 95% CI"]], hide_index=True,
+    st.dataframe(df[["model", "test", "test 95% CI", "vs current model (paired 95% CI)", "CV", "input", "train data"]],
+                 hide_index=True,
                  use_container_width=True,
                  column_config={"CV": st.column_config.NumberColumn(format="%.3f"),
                                 "test": st.column_config.NumberColumn(format="%.3f")})
@@ -333,14 +349,17 @@ def baselines_section(data: dict) -> None:
         x2="high:Q")
     dots = base.mark_circle(size=120).encode(
         x="test:Q",
-        color=alt.condition(alt.datum.model == "Themes, sparse linear (current)", alt.value("#2e7d32"), alt.value("#555")),
+        color=alt.condition(alt.datum.model == "Themes, sparse linear (current)", alt.value("#2e7d32"), alt.value("#9e9e9e")),
         tooltip=["model", alt.Tooltip("test:Q", format=".3f"), alt.Tooltip("CV:Q", format=".3f"), "train data"])
     chance = alt.Chart(pd.DataFrame({"x": [0.5]})).mark_rule(strokeDash=[4, 4], color="#c62828").encode(x="x:Q")
     st.altair_chart((whiskers + dots + chance).properties(height=alt.Step(34)), use_container_width=True)
     st.caption(
         f"All models predict the same target (lift vs. the author's usual), are tuned with the same author-grouped "
-        f"folds, and are tested on the same {data.get('test_authors', '–')} held-out authors "
-        f"({data.get('test_posts', 0):,} posts). The ranges overlap, so the differences are tendencies, not proven gaps. "
+        f"folds (ridge strength, number of trees), and are tested on the same {data.get('test_authors', '–')} held-out "
+        f"authors ({data.get('test_posts', 0):,} posts). Overlapping ranges are not the right test, so the 'vs current model' column "
+        "compares each model with the current one author by author (paired). Reading it: the theme model ties ridge on "
+        "all 147 questions, is clearly better than format alone, and its lead over TF-IDF and gradient boosting is "
+        "small (about 0.02) and at the edge of noise. Its value is matching the best baseline with 7 readable weights. "
         "Red dashed line = chance (0.5)."
     )
 
@@ -413,8 +432,9 @@ def question_budget_section() -> None:
         f"Every point is trained on all training authors and scored on the same {qb['test_authors']} test authors. "
         "Compact: each of the 7 themes is measured by its 2 questions that best track the full theme score, chosen on "
         "training posts. About 10–15 questions keep most of the accuracy (~0.60 vs 0.613); averaging two questions per "
-        "theme beats picking 14 single questions. Dashed line: ridge on all questions. The single-question picks are "
-        "not stable: rerun on other training folds, only about 5 of 10 are always chosen.")
+        "theme is slightly better than 14 single questions (0.602 vs 0.595, within noise). Dashed line: ridge on all "
+        "questions. Single-question picks are not stable: a 10-question sparse model rerun on other training folds "
+        "always keeps only about 5 of the same questions.")
 
     if has_variant("compact"):
         cb = bundle("compact")

@@ -347,3 +347,32 @@ def evaluate(y: np.ndarray, pred: np.ndarray, authors: np.ndarray, min_gap: floa
 
 def fit_ridge(X: np.ndarray, y: np.ndarray, alpha: float = 1.0) -> Ridge:
     return Ridge(alpha=alpha).fit(X, y)
+
+
+# Gradient-boosting baseline
+
+
+GBM_ITERS = (50, 100, 200, 400)
+
+
+def make_gbm(n_iter: int):
+    """Boosted trees with a fixed number of trees. Early stopping is off: sklearn's
+    automatic early stopping holds out random posts (not authors), so the result
+    would depend on row order and ignore the author folds."""
+    from sklearn.ensemble import HistGradientBoostingRegressor
+
+    return HistGradientBoostingRegressor(max_depth=3, learning_rate=0.05, max_iter=n_iter, min_samples_leaf=40,
+                                         l2_regularization=1.0, early_stopping=False, random_state=0)
+
+
+def gbm_cv(X: np.ndarray, y: np.ndarray, folds: np.ndarray, authors: np.ndarray,
+           iters: tuple[int, ...] = GBM_ITERS) -> tuple[object, dict]:
+    """Pick the number of trees by author-grouped CV pairwise accuracy (ties to fewer trees), refit on all data."""
+    scores = {}
+    for n in iters:
+        pred = np.zeros(len(y))
+        for tr, va in cv_splits(folds):
+            pred[va] = make_gbm(n).fit(X[tr], y[tr]).predict(X[va])
+        scores[n] = evaluate(y, pred, authors)["pairwise_accuracy"]
+    best = max(scores, key=lambda n: (scores[n], -n))
+    return make_gbm(best).fit(X, y), {"n_iter": best, "cv_pairwise_by_iter": scores}

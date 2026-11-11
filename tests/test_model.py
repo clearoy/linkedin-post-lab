@@ -101,3 +101,20 @@ def test_themes_group_cooccurring_features():
     scores = theme_scores(P, themes)
     t = next(k for k, v in themes.items() if "a1" in v["members"])
     np.testing.assert_allclose(scores[t], P[["a1", "a2"]].mean(axis=1))
+
+
+def test_gbm_cv_is_deterministic_and_order_free():
+    import numpy as np
+
+    from linkedin_analysis.model import gbm_cv
+
+    rng = np.random.default_rng(0)
+    n = 12000  # above sklearn's auto early-stopping threshold
+    X = rng.random((n, 3))
+    y = X[:, 0] + 0.1 * rng.standard_normal(n)
+    folds, authors = np.arange(n) % 5, np.arange(n) // 10
+    m1, info = gbm_cv(X, y, folds, authors, iters=(20, 40))
+    perm = rng.permutation(n)
+    m2, _ = gbm_cv(X[perm], y[perm], folds[perm], authors[perm], iters=(info["n_iter"],))
+    assert not m1.do_early_stopping_
+    assert m1.n_iter_ == m2.n_iter_ == info["n_iter"]

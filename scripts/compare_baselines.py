@@ -13,7 +13,11 @@ Baselines:
   tfidf_ridge_subset   TF-IDF words + word pairs, ridge; same train authors as the theme model
   tfidf_ridge_all      the same, trained on every train author (needs no Jev, so it can use them all)
   jev_ridge            ridge on all single Jev questions
-  jev_gbm              gradient-boosted trees on all single Jev questions
+  jev_gbm              gradient-boosted trees on all single Jev questions (number of trees chosen by author CV)
+
+Each baseline is also compared with the current theme model on the same test
+authors: the paired difference in per-author pairwise accuracy, with a 95% CI
+from resampling authors (diff_vs_current).
 """
 
 import argparse
@@ -25,14 +29,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))  # see READ
 
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
-from sklearn.ensemble import HistGradientBoostingRegressor  # noqa: E402
 from sklearn.feature_extraction.text import TfidfVectorizer  # noqa: E402
 from sklearn.linear_model import Ridge, RidgeCV  # noqa: E402
 from sklearn.pipeline import make_pipeline  # noqa: E402
 from sklearn.preprocessing import StandardScaler  # noqa: E402
 
 from linkedin_analysis.data import load_all  # noqa: E402
-from linkedin_analysis.model import bootstrap_ci, cv_splits, evaluate, pairwise_by_author  # noqa: E402
+from linkedin_analysis.model import (  # noqa: E402
+    bootstrap_ci, controls_frame, cv_splits, evaluate, fit_ridge, gbm_cv, make_gbm, pairwise_by_author,
+)
 from linkedin_analysis.paths import PROCESSED  # noqa: E402
 
 ALPHAS = np.logspace(-1, 4, 16)
@@ -82,6 +87,13 @@ def main() -> None:
         cv = oof(make_model, X, y, folds)
         return cv, make_model().fit(X, y).predict(test[q_cols].to_numpy()), {"train_posts": len(sub_tr)}
 
+    def gbm():
+        X, y, folds = sub_tr[q_cols].to_numpy(), sub_tr["lift"].to_numpy(), sub_tr["fold"].to_numpy()
+        _, info = gbm_cv(X, y, folds, sub_tr["author"].to_numpy())
+        cv = oof(lambda: make_gbm(info["n_iter"]), X, y, folds)
+        return cv, make_gbm(info["n_iter"]).fit(X, y).predict(test[q_cols].to_numpy()), {
+            "train_posts": len(sub_tr), "n_iter": info["n_iter"]}
+
     sub_folds = sub_tr["fold"].to_numpy()
     # Ridge strength for the Jev-question ridge, chosen once with the author folds.
     jev_alpha = make_pipeline(StandardScaler(), RidgeCV(alphas=ALPHAS, cv=cv_splits(sub_folds))).fit(
@@ -95,9 +107,7 @@ def main() -> None:
         "tfidf_ridge_subset": lambda: tfidf_ridge(sub_tr),
         "tfidf_ridge_all": lambda: tfidf_ridge(all_tr),
         "jev_ridge": lambda: on_questions(lambda: make_pipeline(StandardScaler(), Ridge(alpha=jev_alpha))),
-        "jev_gbm": lambda: on_questions(lambda: HistGradientBoostingRegressor(
-            max_depth=3, learning_rate=0.05, max_iter=300, min_samples_leaf=40, l2_regularization=1.0,
-            random_state=0)),
+        "jev_gbm": lambda: gbm(),
     }
     for name, run in runs.items():
         if name in runs_skip:
@@ -109,13 +119,24 @@ def main() -> None:
                          "test": evaluate(y_te, test_pred, a_te), **info}
         preds[name] = test_pred
 
-    # Current theme model, scored on exactly the same test posts.
+    # Current theme model (from the saved bundle) and the format reference, on exactly the same test posts.
     m = json.loads((PROCESSED / "models" / "metrics.json").read_text())
-    results["themes_linear (current)"] = {"cv_train": m["linear"]["cv_train"], "test": m["linear"]["test"]}
-    results["format_reference"] = {"cv_train": m["controls"]["cv_train"], "test": m["controls"]["test"]}
+    bundle = json.loads((PROCESSED / "models" / "model_bundle.json").read_text())
+    current = bundle["linear"]["intercept"] + sum(
+        c * test[bundle["themes"][t]["members"]].mean(axis=1).to_numpy() for t, c in bundle["linear"]["coef"].items())
+    meta = load_all()[["urn", "media", "words", "hour_pt", "weekday"]]
+    ctl_tr, ctl_te = (controls_frame(f[["urn"]].merge(meta, on="urn")) for f in (sub_tr, test))
+    preds["themes_linear (current)"] = current
+    preds["format_reference"] = fit_ridge(ctl_tr.to_numpy(), sub_tr["lift"].to_numpy()).predict(ctl_te.to_numpy())
+    results["themes_linear (current)"] = {"cv_train": m["linear"]["cv_train"], "test": evaluate(y_te, current, a_te)}
+    results["format_reference"] = {"cv_train": m["controls"]["cv_train"],
+                                   "test": evaluate(y_te, preds["format_reference"], a_te)}
 
+    per_author = {name: pairwise_by_author(y_te, p, a_te) for name, p in preds.items()}
     for name in preds:
-        results[name]["test"]["pairwise_accuracy_ci95"] = bootstrap_ci(pairwise_by_author(y_te, preds[name], a_te))["ci95"]
+        results[name]["test"]["pairwise_accuracy_ci95"] = bootstrap_ci(per_author[name])["ci95"]
+        if name != "themes_linear (current)":  # paired: this model minus the current model, per author
+            results[name]["test"]["diff_vs_current"] = bootstrap_ci(per_author[name], per_author["themes_linear (current)"])
 
     out = PROCESSED / "models" / "baselines.json"
     out.write_text(json.dumps(results, indent=2))

@@ -79,20 +79,40 @@ authors.
 ## Full-data run: every author scored (2026-11-11)
 
 Jev scored all 147 general features on **every labeled post**: 667 train authors (12,299 posts)
-and 165 test authors (3,032 posts). $11.24, about 5.5 minutes, no failed answers. Same pipeline as above:
+and 165 test authors (3,032 posts). About 5.5 minutes, no failed answers. Same pipeline as above:
 15 themes clustered on train posts, themes with fewer than 3 questions set aside, relaxed lasso, ≤ 10 themes.
 
 ### Results on all 165 test authors (3,032 posts)
 
-| Model | CV | Test | Test 95% CI |
-|---|---|---|---|
-| Ridge on all 147 Jev questions | 0.593 | 0.615 | [0.593, 0.636] |
-| **Themes, sparse linear (7 themes)** | 0.588 | **0.613** | [0.593, 0.634] |
-| Gradient boosting on Jev questions | 0.594 | 0.599 | [0.578, 0.619] |
-| TF-IDF + ridge | 0.587 | 0.596 | [0.577, 0.616] |
-| RuleFit on themes | 0.579 | 0.593 | [0.573, 0.612] |
-| *Format reference (not a model input)* | 0.585 | 0.579 | [0.557, 0.600] |
+| Model | CV | Test | Test 95% CI | Minus themes model, paired 95% CI |
+|---|---|---|---|---|
+| Ridge on all 147 Jev questions | 0.593 | 0.615 | [0.593, 0.636] | +0.001 [−0.017, +0.020] |
+| **Themes, sparse linear (7 themes)** | 0.588 | **0.613** | [0.593, 0.634] | — |
+| Gradient boosting on Jev questions | 0.597 | 0.597 | [0.577, 0.616] | −0.016 [−0.034, −0.000] |
+| TF-IDF + ridge | 0.587 | 0.596 | [0.577, 0.616] | −0.017 [−0.035, +0.002] |
+| RuleFit on themes | 0.579 | 0.593 | [0.573, 0.612] | |
+| *Format reference (not a model input)* | 0.585 | 0.579 | [0.557, 0.600] | −0.035 [−0.057, −0.013] |
 
+**Is the theme model better than the ML baselines?** Overlapping per-model ranges are not the right test, so
+the last column compares each model with the themes model author by author (paired bootstrap over the 165 test
+authors).
+- **It ties ridge on all 147 questions** (+0.001).
+- **It is clearly better than format alone** (−0.035, range excludes 0).
+- **Its lead over gradient boosting and TF-IDF is about 0.02 and at the edge of noise.** For boosting the range
+  only just excludes 0, and with four comparisons that is not robust.
+- The claim the data supports: content themes match the best baseline with 7 readable weights, and content beats
+  format.
+
+**Caveat on the test set.** The theme design (15 themes, ≥ 3 questions, ≤ 10 themes, relaxed lasso) was settled
+while looking at the earlier 45-author test sample, and those authors are part of today's 165. The test score may
+be slightly optimistic. A clean check would need authors that were never used.
+
+**Gradient boosting fix (2026-11-11).** The first boosting baseline used sklearn's automatic early stopping,
+which turns on above 10,000 posts and holds out random posts (not authors). Its result depended on row order
+(93 vs 198 trees on the same data, test 0.599 vs 0.601). The number of trees is now chosen by the author folds
+(50/100/200/400; 200 chosen), with early stopping off.
+
+- **Jev cost:** $11.24 for this run plus $1.95 of answers reused from the earlier subset runs, $13.19 in total.
 - **The confidence range is about half as wide** as with 45 test authors (±0.02 instead of ±0.04).
 - **The earlier 0.623 was partly test-set luck.** Trained on 80 authors and tested on all 165, the theme model
   averages 0.596 (learning curve below), not 0.623.
@@ -105,11 +125,11 @@ Mean test pairwise accuracy over 5 samples (1 run at 667).
 
 | Train authors (posts) | Themes linear | Jev ridge | Jev GBM | TF-IDF ridge |
 |---|---|---|---|---|
-| 40 (≈700) | 0.590 | 0.586 | 0.557 | 0.551 |
-| 80 (≈1,500) | 0.596 | 0.598 | 0.571 | 0.563 |
-| 160 (≈3,000) | 0.600 | 0.607 | 0.593 | 0.581 |
-| 320 (≈5,900) | 0.598 | 0.612 | 0.592 | 0.587 |
-| 667 (12,299) | 0.613 | 0.616 | 0.601 | 0.596 |
+| 40 (≈700) | 0.590 | 0.586 | 0.567 | 0.551 |
+| 80 (≈1,500) | 0.596 | 0.598 | 0.584 | 0.563 |
+| 160 (≈3,000) | 0.600 | 0.607 | 0.595 | 0.581 |
+| 320 (≈5,900) | 0.598 | 0.612 | 0.599 | 0.587 |
+| 667 (12,299) | 0.613 | 0.616 | 0.597 | 0.596 |
 
 **Reading it:**
 - More data helps every model, by about +0.005 to +0.01 per doubling of authors.

@@ -40,6 +40,13 @@ prompts [`discover_system.md`](../src/linkedin_analysis/prompts/discover_system.
    checklist instead of reporting what differed. The prompt now asks for the
    differences it actually sees, several of the same kind if that is what
    stands out.
+
+   **Content over surface form.** Without guidance, the first smoke run leaned
+   toward surface checks (question marks, emoji, hashtags, URLs, pronouns),
+   which a text search could answer. The prompt now asks for mostly content
+   properties: topic, claims, stance, story, insight, framing, relationship to
+   the reader. Surface-form properties are capped at about a quarter. This
+   steers which kinds of property are proposed, not which direction they go.
 3. **Lint.** Proposals with missing fields are dropped. Evaluative words (strong,
    engaging, compelling and so on) are flagged in `lint` for the merge step to
    fix.

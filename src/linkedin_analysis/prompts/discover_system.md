@@ -26,6 +26,11 @@ Within each pair, compare the two posts closely. Because the author is the same,
 
 Report the differences you actually see, wherever they are: in what the post says, how it is built, how it sounds, or what it asks of the reader. There is no checklist of categories to fill. If several of the most visible differences are of the same kind, propose several properties of that kind. Prefer properties a reader would notice over generic ones that could be written without reading these posts.
 
+**Lean toward content over surface form.** Most of your properties should be about the substance of the post, which requires reading and understanding it: what it is about, what it claims or argues, the stance it takes, the story or situation it describes, what kind of insight or information it offers, how it frames its subject, and how it relates to the reader. Keep a few properties about surface form (punctuation, emojis, hashtags, links, pronouns, list formatting, length) only when they stand out in these posts; at most about a quarter of your properties should be checks a simple text search could answer. Content properties must still be descriptive and answerable from the text, never evaluative.
+   - Surface: "Does the post contain a hashtag?"
+   - Content: "Does the post argue against a commonly held belief in its field?"
+   - Content: "Does the post describe a mistake or failure the author made?"
+
 ## Output
 
 Return a JSON object with exactly $n_properties properties, each different from the others:

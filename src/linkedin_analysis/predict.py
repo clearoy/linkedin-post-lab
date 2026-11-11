@@ -70,3 +70,13 @@ def predict_rulefit(bundle: dict, row: dict[str, float]) -> tuple[float, list[di
 def multiplier(lift: float) -> float:
     """lift is log((reactions + s) / (baseline + s)); exp gives the approximate ratio."""
     return float(np.exp(lift))
+
+
+def linear_features(bundle: dict) -> list[dict]:
+    """Only the Jev questions the linear model needs: members of its non-zero
+    themes, plus any non-zero single features. Everything else is skipped."""
+    needed: set[str] = set()
+    for col in bundle["linear"]["coef"]:
+        theme = bundle.get("themes", {}).get(col)
+        needed.update(theme["members"] if theme else [col])
+    return [f for f in bundle["features"] if f["id"] in needed]

@@ -21,14 +21,13 @@ import streamlit as st  # noqa: E402
 
 from linkedin_analysis import judge  # noqa: E402
 from linkedin_analysis.llm import DecisionsClient, LLMSettings  # noqa: E402
-from linkedin_analysis.model import MEDIA  # noqa: E402
 from linkedin_analysis.paths import PROCESSED  # noqa: E402
 from linkedin_analysis.predict import (  # noqa: E402
     build_row,
     load_bundle,
     multiplier,
+    linear_features,
     predict_linear,
-    predict_rulefit,
 )
 
 MAX_COST_PER_SESSION = 0.25  # USD, Jev spend cap for one browser session
@@ -62,20 +61,6 @@ def describe(column: str, questions: dict[str, str]) -> str:
     return names.get(column, column)
 
 
-def describe_condition(col: str, op: str, t: float, questions: dict[str, str]) -> str:
-    if col in questions:
-        # Thresholds near 0 or 1 mean "not a clear no/yes" rather than a plain yes/no.
-        if op == ">":
-            answer = "yes" if t >= 0.5 else "not a clear no"
-        else:
-            answer = "no" if t < 0.5 else "not a clear yes"
-        return f"{questions[col]} → **{answer}** (P(yes) {op} {t:.2f})"
-    if col == "ctl.log_words":
-        return f"{'more' if op == '>' else 'at most'} than ~{math.expm1(t):.0f} words"
-    is_on = op == ">"
-    return f"{describe(col, questions)}: {'yes' if is_on else 'no'}"
-
-
 def fmt_x(lift: float) -> str:
     m = multiplier(lift)
     return f"{m:.2f}×"
@@ -87,15 +72,16 @@ def fmt_x(lift: float) -> str:
 def evaluate_tab() -> None:
     b = bundle()
     questions = {f["id"]: f["question"] for f in b["features"]}
-    themes = b.get("themes", {})
-    questions.update({t: v["label"] for t, v in themes.items()})
+    used = {t: v for t, v in b.get("themes", {}).items() if t in b["linear"]["coef"]}  # themes the model uses
+    questions.update({t: v["label"] for t, v in used.items()})
+    ask = linear_features(b)  # only the questions those themes need
     m = b["metrics"]
 
     st.subheader("Evaluate a draft post")
     st.caption(
-        f"Jev scores the draft on {len(b['features'])} content properties (about "
-        f"${len(b['features']) * judge.USD_PER_QUESTION:.3f} per post). Two models trained on real posts turn "
-        "those scores into an expected result **relative to the author's usual post**, so it applies to any account size."
+        f"The linear model uses {len(b['linear']['coef'])} content themes. Jev answers the {len(ask)} yes/no "
+        f"questions behind them (about ${len(ask) * judge.USD_PER_QUESTION:.4f} per post), and the model turns "
+        "those answers into an expected result **relative to the author's usual post**, for any account size."
     )
     left, right = st.columns([4, 1])
     text = left.text_area("Post text", height=260, placeholder="Paste a LinkedIn post draft…")
@@ -105,17 +91,16 @@ def evaluate_tab() -> None:
     if go:
         client = jev()
         post = {"urn": "draft", "media": "text", "body": text}  # Jev sees only the text
-        with st.spinner("Asking Jev…"):
+        with st.spinner(f"Asking Jev {len(ask)} questions…"):
             try:
-                rows, skipped = judge.judge(client.decide, [post], b["features"], workers=8)
+                rows, skipped = judge.judge(client.decide, [post], ask, workers=8)
             except Exception as e:  # network or API errors
                 st.error(f"Jev call failed: {e}")
                 return
         if skipped:
             st.error(f"Session spending cap (${MAX_COST_PER_SESSION:.2f}) reached. Restart the app to reset it.")
             return
-        st.session_state["result"] = {"rows": rows, "text": text,
-                                      "spent": client.usage.cost_usd}
+        st.session_state["result"] = {"rows": rows, "text": text, "spent": client.usage.cost_usd}
 
     result = st.session_state.get("result")
     if not result:
@@ -123,56 +108,46 @@ def evaluate_tab() -> None:
     p_yes = {r["feature_id"]: r["p_yes"] for r in result["rows"]}
     row = build_row(b, p_yes, "text", result["text"])
     lin_pred, contrib = predict_linear(b, row)
-    rf_pred, fired = predict_rulefit(b, row)
 
     st.divider()
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Linear model", fmt_x(lin_pred), help="Expected reactions vs. the author's usual post")
-    c2.metric("RuleFit", fmt_x(rf_pred), help="Expected reactions vs. the author's usual post")
-    c3.metric("Test pairwise accuracy", f"{m['linear']['test']['pairwise_accuracy']:.0%} / "
-              f"{m['rulefit']['test']['pairwise_accuracy']:.0%}",
-              help="Linear / RuleFit. For two posts by the same held-out author, how often the model "
-                   "ranks the better one higher. 50% = chance.")
-    st.caption(f"1.00× = a typical post for this author. Jev spend this session: ${result['spent']:.4f}.")
+    c1, c2 = st.columns(2)
+    c1.metric("Expected reactions vs. author's usual", fmt_x(lin_pred),
+              help="Linear model on content themes. 1.00× = a typical post for this author.")
+    c2.metric("Model test accuracy", f"{m['linear']['test']['pairwise_accuracy']:.0%}",
+              help="For two posts by the same held-out author, how often the model ranks the better one higher. "
+                   "50% = chance.")
+    st.caption(f"Jev answered {len(p_yes)} questions. Spend this session: ${result['spent']:.4f}.")
 
-    # Full width: the property labels are long.
-    st.markdown("**What moves the linear model's prediction**")
-    top = [c for c in contrib if abs(c["contribution"]) > 1e-4][:12]
+    st.markdown("**What moves the prediction**")
+    top = [c for c in contrib if abs(c["contribution"]) > 1e-4]
     if top:
         df = pd.DataFrame({
-            "property": [describe(c["column"], questions) for c in top],
+            "theme": [describe(c["column"], questions) for c in top],
             "effect": [c["contribution"] for c in top],
-            "P(yes)": [c["value"] if c["column"] in questions else None for c in top],
+            "theme score": [c["value"] for c in top],
+            "weight": [c["coef"] for c in top],
         })
         chart = alt.Chart(df).mark_bar().encode(
             x=alt.X("effect:Q", title="Push on log-lift vs. average post"),
-            y=alt.Y("property:N", sort=None, title=None, axis=alt.Axis(labelLimit=520)),
+            y=alt.Y("theme:N", sort=None, title=None, axis=alt.Axis(labelLimit=520)),
             color=alt.condition(alt.datum.effect > 0, alt.value("#2e7d32"), alt.value("#c62828")),
-            tooltip=["property", alt.Tooltip("effect:Q", format="+.3f"), alt.Tooltip("P(yes):Q", format=".2f")],
+            tooltip=["theme", alt.Tooltip("effect:Q", format="+.3f"), alt.Tooltip("theme score:Q", format=".2f"),
+                     alt.Tooltip("weight:Q", format="+.3f")],
         ).properties(height=alt.Step(30))
         st.altair_chart(chart, use_container_width=True)
     else:
-        st.write("No property moves this prediction away from average.")
+        st.write("No theme moves this prediction away from average.")
 
-    st.markdown("**RuleFit rules that apply to this post** (strongest first)")
-    if fired:
-        for r in fired[:8]:
-            conds = "<br>".join("• " + describe_condition(c, op, t, questions) for c, op, t in r["conditions"])
-            sign = "🟢" if r["coef"] > 0 else "🔴"
-            st.markdown(f"{sign} **{r['coef']:+.3f}**<br>{conds}", unsafe_allow_html=True)
-    else:
-        st.write("No rules fire for this post.")
-
-    if themes:
-        with st.expander(f"What each of the {len(themes)} themes contains"):
-            for t, v in themes.items():
-                score = row.get(t)
-                st.markdown(f"**{v['label']}** — this post: {score:.2f}" if score is not None else f"**{v['label']}**")
-                st.markdown("\n".join(f"- {q}" for q in v["member_questions"]))
+    with st.expander(f"The {len(used)} themes and their questions"):
+        for t, v in used.items():
+            st.markdown(f"**{v['label']}** · weight {b['linear']['coef'][t]:+.3f} · this post: {row[t]:.2f} "
+                        f"· {len(v['members'])} questions")
+            st.markdown("\n".join(f"- {q} — P(yes) {p_yes.get(f, float('nan')):.2f}"
+                                    for f, q in zip(v["members"], v["member_questions"])))
 
     with st.expander(f"All {len(p_yes)} Jev answers"):
-        table = pd.DataFrame([{"property": questions[k], "P(yes)": v, "dimension": k.split(".")[0]}
-                              for k, v in p_yes.items()]).sort_values("P(yes)", ascending=False)
+        table = pd.DataFrame([{"question": questions[k], "P(yes)": v} for k, v in p_yes.items()]
+                             ).sort_values("P(yes)", ascending=False)
         st.dataframe(table, hide_index=True, use_container_width=True,
                      column_config={"P(yes)": st.column_config.ProgressColumn(min_value=0, max_value=1, format="%.2f")})
 

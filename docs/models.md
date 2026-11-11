@@ -75,3 +75,65 @@ authors.
 - Every post is scored on every theme. A post that doesn't touch a theme scores near 0 there, so that
   theme barely changes its prediction.
 - Associations within authors, not proven causes.
+
+## Full-data run: every author scored (2026-11-11)
+
+Jev scored all 147 general features on **every labeled post**: 667 train authors (12,299 posts)
+and 165 test authors (3,032 posts). $11.24, about 5.5 minutes, no failed answers. Same pipeline as above:
+15 themes clustered on train posts, themes with fewer than 3 questions set aside, relaxed lasso, ≤ 10 themes.
+
+### Results on all 165 test authors (3,032 posts)
+
+| Model | CV | Test | Test 95% CI |
+|---|---|---|---|
+| Ridge on all 147 Jev questions | 0.593 | 0.615 | [0.593, 0.636] |
+| **Themes, sparse linear (7 themes)** | 0.588 | **0.613** | [0.593, 0.634] |
+| Gradient boosting on Jev questions | 0.594 | 0.599 | [0.578, 0.619] |
+| TF-IDF + ridge | 0.587 | 0.596 | [0.577, 0.616] |
+| RuleFit on themes | 0.579 | 0.593 | [0.573, 0.612] |
+| *Format reference (not a model input)* | 0.585 | 0.579 | [0.557, 0.600] |
+
+- **The confidence range is about half as wide** as with 45 test authors (±0.02 instead of ±0.04).
+- **The earlier 0.623 was partly test-set luck.** Trained on 80 authors and tested on all 165, the theme model
+  averages 0.596 (learning curve below), not 0.623.
+- **7 themes do almost as well as all 147 questions** (0.613 vs 0.615), with 7 readable weights instead of 147.
+
+### Learning curve (same 165 test authors at every size)
+
+Random samples of whole train authors; every model refit from scratch (themes re-clustered, settings re-tuned).
+Mean test pairwise accuracy over 5 samples (1 run at 667).
+
+| Train authors (posts) | Themes linear | Jev ridge | Jev GBM | TF-IDF ridge |
+|---|---|---|---|---|
+| 40 (≈700) | 0.590 | 0.586 | 0.557 | 0.551 |
+| 80 (≈1,500) | 0.596 | 0.598 | 0.571 | 0.563 |
+| 160 (≈3,000) | 0.600 | 0.607 | 0.593 | 0.581 |
+| 320 (≈5,900) | 0.598 | 0.612 | 0.592 | 0.587 |
+| 667 (12,299) | 0.613 | 0.616 | 0.601 | 0.596 |
+
+**Reading it:**
+- More data helps every model, by about +0.005 to +0.01 per doubling of authors.
+- Jev features beat raw words at every size. They matter most with little data (0.59 vs 0.55 at 40 authors).
+- The theme model is already near its level with few authors. Its jump at 667 is one run, so part of it may be noise.
+- No model is close to flattening out on more data, but the gains are small. Doubling the data again would
+  likely add about 0.01, so better properties (new discovery) are the bigger lever now.
+
+### What the model keeps (trained on all 667 authors)
+
+| Theme (DeepSeek name) | Questions | Weight | Typical effect* | Same sign in CV folds |
+|---|---|---|---|---|
+| Personal story | 13 | +0.463 | 1.16× | 5/5 |
+| Milestone and gratitude | 18 | +0.451 | 1.10× | 5/5 |
+| Job opportunity listing | 22 | +0.367 | 1.10× | 5/5 |
+| Funding and numbers | 4 | +0.106 | 1.03× | 5/5 |
+| Product promotion and news | 12 | −0.093 | 0.97× | 4/5 |
+| Cited sources | 8 | −0.133 | 0.98× | 5/5 |
+| How-to guidance | 9 | −0.188 | 0.94× | 5/5 |
+
+\* 25th → 75th percentile of training posts.
+
+The story is the same as the small run: personal stories, milestones/gratitude and job listings go with
+above-usual reactions. Advice-style posts, cited sources and promotion go with slightly below-usual reactions.
+New with more data: how-to guidance and cited sources now show up as small negatives, and promotion's
+negative weight is smaller. The dashboard asks Jev 86 questions per post (the members of these 7 themes).
+The small-run model is kept in `data/processed/models_small_80authors/` for comparison.

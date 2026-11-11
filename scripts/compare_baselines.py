@@ -1,10 +1,11 @@
 """Compare the theme model with standard ML baselines on the same held-out authors.
 
 Usage:
-    uv run python scripts/compare_baselines.py
+    uv run python scripts/compare_baselines.py \
+        --train data/processed/judgments_full_train --test data/processed/judgments_full_test
 
 Every model predicts the same target (`lift`) and is scored on the same test
-authors: those Jev scored in data/processed/judgments_text_test. Tuning uses
+authors: those Jev scored in the --test judgments folder. Tuning uses
 the author-grouped CV folds from splits.parquet. Writes
 data/processed/models/baselines.json.
 
@@ -15,6 +16,7 @@ Baselines:
   jev_gbm              gradient-boosted trees on all single Jev questions
 """
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -44,13 +46,17 @@ def oof(make, X, y, folds) -> np.ndarray:
 
 
 def main() -> None:
+    p = argparse.ArgumentParser()
+    p.add_argument("--train", type=Path, default=PROCESSED / "judgments_text_train")
+    p.add_argument("--test", type=Path, default=PROCESSED / "judgments_text_test")
+    args = p.parse_args()
     labels = pd.read_parquet(PROCESSED / "labels.parquet")[["urn", "author", "lift"]]
     splits = pd.read_parquet(PROCESSED / "splits.parquet")[["author", "split", "fold"]]
     posts = load_all()[["urn", "body"]]
     df = labels.merge(splits, on="author").merge(posts, on="urn")
 
-    jtr = pd.read_parquet(PROCESSED / "judgments_text_train" / "features.parquet")
-    jte = pd.read_parquet(PROCESSED / "judgments_text_test" / "features.parquet")
+    jtr = pd.read_parquet(args.train / "features.parquet")
+    jte = pd.read_parquet(args.test / "features.parquet")
     q_cols = [c for c in jtr.columns if c != "urn"]
     sub_tr = df.merge(jtr, on="urn").reset_index(drop=True)
     test = df.merge(jte, on="urn").reset_index(drop=True)
@@ -81,6 +87,10 @@ def main() -> None:
     jev_alpha = make_pipeline(StandardScaler(), RidgeCV(alphas=ALPHAS, cv=cv_splits(sub_folds))).fit(
         sub_tr[q_cols].to_numpy(), sub_tr["lift"].to_numpy())[-1].alpha_
     results, preds = {}, {}
+    if sub_tr["author"].nunique() == all_tr["author"].nunique():  # Jev scored every train author
+        runs_skip = {"tfidf_ridge_all"}
+    else:
+        runs_skip = set()
     runs = {
         "tfidf_ridge_subset": lambda: tfidf_ridge(sub_tr),
         "tfidf_ridge_all": lambda: tfidf_ridge(all_tr),
@@ -90,6 +100,8 @@ def main() -> None:
             random_state=0)),
     }
     for name, run in runs.items():
+        if name in runs_skip:
+            continue
         print(f"running {name} ...", flush=True)
         cv_pred, test_pred, info = run()
         train_frame = all_tr if name == "tfidf_ridge_all" else sub_tr

@@ -39,17 +39,31 @@ def read_json(path: Path) -> dict | None:
     return json.loads(path.read_text()) if path.exists() else None
 
 
+def _mtime(name: str) -> float:
+    path = PROCESSED / "models" / name
+    return path.stat().st_mtime if path.exists() else 0.0
+
+
 @st.cache_resource
-def bundle() -> dict:
+def _bundle(mtime: float) -> dict:
     return load_bundle()
 
 
+def bundle() -> dict:
+    """The trained model; reloaded automatically when train_models.py rewrites it."""
+    return _bundle(_mtime("model_bundle.json"))
+
+
 @st.cache_resource
-def theme_names() -> dict[str, dict]:
-    """DeepSeek-written names (scripts/name_themes.py), used only if the theme's questions still match."""
+def _theme_names(mtime: tuple[float, float]) -> dict[str, dict]:
     names = read_json(PROCESSED / "models" / "theme_names.json") or {}
     themes = bundle().get("themes", {})
     return {t: v for t, v in names.items() if t in themes and v.get("members") == themes[t]["members"]}
+
+
+def theme_names() -> dict[str, dict]:
+    """DeepSeek-written names (scripts/name_themes.py), used only if the theme's questions still match."""
+    return _theme_names((_mtime("model_bundle.json"), _mtime("theme_names.json")))
 
 
 def theme_title(t: str) -> str:
@@ -184,8 +198,10 @@ def pipeline_tab() -> None:
     labels = read_json(PROCESSED / "labels_summary.json") or {}
     splits = read_json(PROCESSED / "splits_summary.json") or {}
     disc = read_json(PROCESSED / "features" / "run_meta.json") or {}
-    jt = read_json(PROCESSED / "judgments_text_train" / "run_meta.json") or {}
-    jte = read_json(PROCESSED / "judgments_text_test" / "run_meta.json") or {}
+    full = (PROCESSED / "judgments_full_train" / "run_meta.json").exists()
+    jdir = "judgments_full" if full else "judgments_text"
+    jt = read_json(PROCESSED / f"{jdir}_train" / "run_meta.json") or {}
+    jte = read_json(PROCESSED / f"{jdir}_test" / "run_meta.json") or {}
     metrics = read_json(PROCESSED / "models" / "metrics.json") or {}
     data = metrics.get("data", {})
 
@@ -239,15 +255,16 @@ def pipeline_tab() -> None:
                "well as format alone (the reference row), and the difference is within noise at this sample size.")
 
     baselines_section(data)
+    learning_curve_section()
     themes_section()
 
 
 BASELINES = {  # key in baselines.json: (label, input, trained on)
-    "themes_linear (current)": ("Themes, sparse linear (current)", "5 Jev theme scores", "subset"),
+    "themes_linear (current)": ("Themes, sparse linear (current)", "Jev theme scores", "subset"),
     "tfidf_ridge_all": ("TF-IDF + ridge, all data", "Raw words and word pairs", "all"),
     "jev_ridge": ("Ridge on all Jev questions", "All single Jev P(yes)", "subset"),
     "jev_gbm": ("Gradient boosting on Jev questions", "All single Jev P(yes), non-linear", "subset"),
-    "tfidf_ridge_subset": ("TF-IDF + ridge, same data", "Raw words and word pairs", "subset"),
+    "tfidf_ridge_subset": ("TF-IDF + ridge", "Raw words and word pairs", "subset"),
     "format_reference": ("Format reference (not content)", "Media, length, posting time", "subset"),
 }
 
@@ -293,8 +310,38 @@ def baselines_section(data: dict) -> None:
         f"All models predict the same target (lift vs. the author's usual), are tuned with the same author-grouped "
         f"folds, and are tested on the same {data.get('test_authors', '–')} held-out authors "
         f"({data.get('test_posts', 0):,} posts). The ranges overlap, so the differences are tendencies, not proven gaps. "
-        "TF-IDF needs no Jev, so its 'all data' version can train on every training author. Red dashed line = chance (0.5)."
+        "Red dashed line = chance (0.5)."
     )
+
+
+LC_NAMES = {"themes_linear": "Themes, sparse linear (current)", "jev_ridge": "Ridge on all Jev questions",
+            "jev_gbm": "Gradient boosting on Jev questions", "tfidf_ridge": "TF-IDF + ridge"}
+
+
+def learning_curve_section() -> None:
+    lc = read_json(PROCESSED / "models" / "learning_curve.json")
+    if not lc:
+        return
+    st.markdown("#### Does more training data help?")
+    df = pd.DataFrame(lc["summary"])
+    df["model"] = df["model"].map(LC_NAMES).fillna(df["model"])
+    df["low"], df["high"] = df["mean"] - df["sd"], df["mean"] + df["sd"]
+    base = alt.Chart(df).encode(
+        x=alt.X("train_authors:Q", title="Training authors (log scale)", scale=alt.Scale(type="log"),
+                axis=alt.Axis(values=sorted(df["train_authors"].unique().tolist()))),
+        color=alt.Color("model:N", title=None, legend=alt.Legend(orient="bottom", columns=2, labelLimit=320)))
+    band = base.mark_area(opacity=0.12).encode(y=alt.Y("low:Q", scale=alt.Scale(zero=False),
+                                                       title="Test pairwise accuracy"), y2="high:Q")
+    line = base.mark_line(point=True).encode(
+        y="mean:Q",
+        tooltip=["model", "train_authors", alt.Tooltip("mean:Q", format=".3f"), alt.Tooltip("sd:Q", format=".3f"),
+                 "runs"])
+    st.altair_chart((band + line).properties(height=320), use_container_width=True)
+    st.caption(
+        f"Each point trains the model from scratch on a random sample of training authors (themes re-clustered, "
+        f"settings re-tuned) and scores it on the same {lc['test_authors']} test authors ({lc['test_posts']:,} posts). "
+        "Smaller sizes are averaged over 5 random samples; the band is ±1 standard deviation across them. "
+        "The rightmost point uses every training author once.")
 
 
 def themes_section() -> None:

@@ -62,13 +62,15 @@ linkedin-analysis/
 | 1. Labels | done | `uv run python scripts/build_labels.py` | `data/processed/labels.parquet` |
 | 2. Author split (80/20, 5 folds) | done | `uv run python scripts/build_splits.py` | `data/processed/splits.parquet` |
 | 3. LLM feature discovery (DeepSeek) | done: 205 features | `uv run python scripts/discover_features.py` | `data/processed/features/feature_bank.json` |
-| 4. Feature judging (Jev) | done on a subset ($4.32) | `uv run python scripts/judge_features.py --split train --n-authors 115 --max-cost 3 --out data/processed/judgments_train` (and `--split test --n-authors 65 --max-cost 1.8 --out data/processed/judgments_test`) | `data/processed/judgments_*/features.parquet` |
-| 5. Linear model / RuleFit | done | `uv run python scripts/train_models.py --judgments data/processed/judgments_train data/processed/judgments_test` | `data/processed/models/` |
+| 4. Feature judging (Jev) | done: every labeled post, 147 general features ($11.24) | `uv run python scripts/judge_features.py --bank data/processed/features/feature_bank_general.json --split train --max-cost 13 --out data/processed/judgments_full_train` (and `--split test --max-cost 3.5 --out data/processed/judgments_full_test`) | `data/processed/judgments_full_*/features.parquet` |
+| 5. Theme model / RuleFit | done | `uv run python scripts/train_models.py --judgments data/processed/judgments_full_train data/processed/judgments_full_test --bank data/processed/features/feature_bank_general.json --themes 15`, then `scripts/name_themes.py` | `data/processed/models/` |
+| 5b. Baselines and learning curve | done | `scripts/compare_baselines.py --train data/processed/judgments_full_train --test data/processed/judgments_full_test`; `scripts/learning_curve.py --judgments` (same two folders) | `models/baselines.json`, `models/learning_curve.json` |
 | 6. Dashboard | done | `uv run streamlit run app/dashboard.py` | http://localhost:8501 |
 
-First results are in [docs/models.md](docs/models.md). The models use content
-features only. On held-out authors they rank same-author posts correctly 57–59%
-of the time (chance is 50%), about the same as media, length and time alone.
+Results are in [docs/models.md](docs/models.md). The models use content
+features only. On all 165 held-out authors the theme model ranks same-author
+posts correctly 61.3% of the time [59.3, 63.4] (chance is 50%), vs 57.9% for
+media, length and time alone.
 
 **Labels:** each post is compared only with the same author's other posts, to
 remove the author's influence. The main target is `lift` = log of reactions

@@ -30,6 +30,7 @@ import pandas as pd  # noqa: E402
 
 from linkedin_analysis.data import load_all  # noqa: E402
 from linkedin_analysis.model import (  # noqa: E402
+    ATTACHMENT_FEATURES,
     RelaxedLasso,
     RuleFit,
     ScaledLasso,
@@ -49,6 +50,9 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--judgments", type=Path, nargs="+", required=True)
     p.add_argument("--bank", type=Path, default=PROCESSED / "features" / "feature_bank.json")
+    p.add_argument("--controls", action="store_true",
+                   help="also feed format/time controls (media, length, posting time) to the models; "
+                        "off by default so the models use content only")
     p.add_argument("--min-prevalence", type=float, default=0.02,
                    help="drop features whose mean P(yes) in train is below this or above 1 minus this")
     p.add_argument("--out", type=Path, default=PROCESSED / "models")
@@ -85,14 +89,16 @@ def main() -> None:
     feat_cols = [c for c in wide.columns if c != "urn" and c in bank]
     train = df["split"] == "train"
     prevalence = df.loc[train, feat_cols].mean()
-    keep = [c for c in feat_cols if args.min_prevalence <= prevalence[c] <= 1 - args.min_prevalence]
+    keep = [c for c in feat_cols if args.min_prevalence <= prevalence[c] <= 1 - args.min_prevalence
+            and c not in ATTACHMENT_FEATURES]
     dropped = sorted(set(feat_cols) - set(keep))
     df[keep] = df[keep].fillna(df.loc[train, keep].mean())  # rare refusals
 
     ctl = controls_frame(df)
     ctl_cols = list(ctl.columns)
     df = pd.concat([df, ctl], axis=1)
-    cols = keep + ctl_cols
+    model_ctl = ctl_cols if args.controls else []  # the controls-only baseline below is a reference, not a model input
+    cols = keep + model_ctl
 
     tr, te = df[train].reset_index(drop=True), df[~train].reset_index(drop=True)
     y_tr, y_te, folds = tr["lift"].to_numpy(), te["lift"].to_numpy(), tr["fold"].to_numpy()
@@ -107,7 +113,7 @@ def main() -> None:
     # 2. Linear model on features + controls. coef_full is indexed like `cols`.
     X_tr, X_te = tr[cols].to_numpy(), te[cols].to_numpy()
     if args.linear_max_terms:
-        F_tr, C_tr = tr[keep].to_numpy(), tr[ctl_cols].to_numpy()
+        F_tr, C_tr = tr[keep].to_numpy(), tr[model_ctl].to_numpy()
         rl, lasso_info = relaxed_lasso_cv(F_tr, C_tr, y_tr, folds, tr["author"].to_numpy(),
                                           max(args.linear_max_terms, args.linear_k or 0), args.linear_k)
 
@@ -125,7 +131,7 @@ def main() -> None:
             oof_lin[v] = m.predict(F_tr[v], C_tr[v])
             fold_signs.append(np.sign(full(m)))
         fold_signs = np.array(fold_signs)
-        lin_test = rl.predict(te[keep].to_numpy(), te[ctl_cols].to_numpy())
+        lin_test = rl.predict(te[keep].to_numpy(), te[model_ctl].to_numpy())
         lasso_info.update(model="relaxed_lasso", nonzero=int((coef_full != 0).sum()))
     else:
         lasso, lasso_info = lasso_cv(X_tr, y_tr, folds, rule=args.linear_rule)
@@ -156,6 +162,8 @@ def main() -> None:
     metrics["data"] = {"train_authors": int(tr["author"].nunique()), "train_posts": len(tr),
                        "test_authors": int(te["author"].nunique()), "test_posts": len(te),
                        "features_scored": len(feat_cols), "features_used": len(keep),
+                       "controls_in_models": bool(args.controls),
+                       "features_excluded_attachment": sorted(ATTACHMENT_FEATURES & set(feat_cols)),
                        "features_dropped_prevalence": dropped}
     metrics["linear_info"] = lasso_info
     metrics["rulefit_info"] = rf.info_

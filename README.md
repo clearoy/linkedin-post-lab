@@ -66,9 +66,9 @@ linkedin-analysis/
 | 5. Linear model / RuleFit | done | `uv run python scripts/train_models.py --judgments data/processed/judgments_train data/processed/judgments_test` | `data/processed/models/` |
 | 6. Dashboard | done | `uv run streamlit run app/dashboard.py` | http://localhost:8501 |
 
-First results are in [docs/models.md](docs/models.md). On held-out authors, the
-linear model ranks same-author posts correctly 60.7% of the time, versus 58.1%
-for media, length and time alone.
+First results are in [docs/models.md](docs/models.md). The models use content
+features only. On held-out authors they rank same-author posts correctly 57–59%
+of the time (chance is 50%), about the same as media, length and time alone.
 
 **Labels:** each post is compared only with the same author's other posts, to
 remove the author's influence. The main target is `lift` = log of reactions

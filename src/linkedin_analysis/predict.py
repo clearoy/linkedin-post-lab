@@ -24,9 +24,10 @@ def build_row(bundle: dict, p_yes: dict[str, float], media: str, text: str) -> d
     """Full input row: Jev features, known controls, training means for the rest."""
     row = dict(bundle["column_means"])
     row.update({k: v for k, v in p_yes.items() if k in row and v is not None and not math.isnan(v)})
-    for m in MEDIA:
-        row[f"ctl.media_{m}"] = float(media == m)
-    row["ctl.log_words"] = math.log1p(word_count(text))
+    if "ctl.log_words" in row:  # only when the models were trained with controls
+        for m in MEDIA:
+            row[f"ctl.media_{m}"] = float(media == m)
+        row["ctl.log_words"] = math.log1p(word_count(text))
     return row
 
 

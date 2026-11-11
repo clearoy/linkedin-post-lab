@@ -7,59 +7,61 @@ Code: [`model.py`](../src/linkedin_analysis/model.py),
 ## Setup
 
 - **Target:** `lift` (see [labels.md](labels.md)): log reactions relative to the author's usual.
-- **Inputs:** Jev P(yes) for 202 features (3 of 205 dropped as almost always yes or no), plus
-  controls: media type, log word count, weekend, and hour bucket (PT).
+- **Inputs: content only.** Jev P(yes) for 200 features:
+  - 205 discovered;
+  - 3 dropped for being almost always yes or no;
+  - 2 dropped for describing the attachment rather than the content ("has at least one image
+    attached", "attached media is a video").
+
+  **No media type, length, or posting-time inputs.** Pass `--controls` to add them back.
 - **Data (first run, Jev under $5):** 115 train authors (2,148 posts) and 65 test authors
   (1,315 posts), sampled from the 80/20 author split.
-- **Tuning:** 5 author-grouped folds inside train. The test set was scored once with the
-  chosen settings.
+- **Tuning:** 5 author-grouped folds inside train. The test set is scored once with the chosen
+  settings.
 
 | Model | What it is |
 |---|---|
-| Controls | Ridge on controls only: the baseline content must beat |
-| Linear | **Relaxed lasso**: the lasso picks at most 10 content features (cross-validation picks how many), then an unpenalized refit on those plus all controls |
-| RuleFit | Rules from 100 depth-3 boosted trees plus scaled linear terms, then lasso (one-standard-error penalty): 76 rules + 4 linear terms |
+| Sparse linear | **Relaxed lasso**: the lasso picks at most 10 content features (CV picks how many), then an unpenalized refit on those |
+| RuleFit | Rules from 100 depth-3 boosted trees on content features, then lasso (one-standard-error penalty) |
+| *Format reference* | *Ridge on media type, length, and posting time. Used only as a comparison row, never as a model input* |
 
-**Why a relaxed lasso.**
-- **Plain lasso with the lowest-error penalty** kept 26 content features (CV 0.589, test 0.607).
-- **Forcing plain lasso down to 10 terms** needed so much penalty that it shrank the survivors and dropped the controls (CV 0.577).
-- **The relaxed lasso** separates choosing features from estimating effects, so the kept effects keep their full size. Choosing 1–10 features by CV: 3 scored best (0.600); 5–9 scored 0.593–0.598, which is within noise.
-- **RuleFit:** the one-standard-error rule beat the lowest-error penalty on CV (0.580 vs 0.573 with 350 terms).
+**Why a relaxed lasso.** The plain lasso kept 26 features. Penalizing it harder until 10 were
+left also shrank the survivors toward zero. The relaxed lasso separates choosing features from
+estimating their effects, so the kept effects keep their full size.
 
-## Results on held-out authors
+## Results on held-out authors (content only)
 
-Pairwise accuracy: for two posts by the same author whose lift differs by at
-least 0.1, the share the model ranks correctly (0.5 = chance). 95% CIs come from
-resampling the 65 test authors.
+Pairwise accuracy: for two posts by the same author whose lift differs by at least 0.1, the
+share the model ranks correctly (0.5 = chance). 95% CIs come from resampling the 65 test authors.
 
-| Model | CV | Test | Gain over controls |
+| Model | Terms | CV | Test |
 |---|---|---|---|
-| Controls | 0.579 | 0.581 [0.547, 0.614] | — |
-| Linear (relaxed, 3 features) | 0.600 | **0.600** [0.560, 0.640] | +0.019 [−0.019, +0.053] |
-| *Plain lasso, 26 features (earlier)* | *0.589* | *0.607 [0.566, 0.645]* | *+0.026 [−0.009, +0.059]* |
-| RuleFit | 0.580 | 0.595 [0.559, 0.628] | +0.014 [−0.016, +0.042] |
+| Sparse linear | 2 features | 0.584 | 0.574 [0.540, 0.607] |
+| RuleFit | 41 rules | 0.587 | 0.594 [0.558, 0.630] |
+| *Format reference (not a model input)* | — | 0.579 | 0.581 [0.547, 0.614] |
 
 **Reading it:**
-- Every model ranks posts better than chance.
-- The content models do better than controls alone, but with 65 test authors the gain's
-  interval still includes zero.
-- Scoring more authors with Jev (about $0.024 per author) is the cheapest way to confirm it.
+- Both content-only models rank same-author posts better than chance.
+- Content alone does about as well as format alone. The differences are within noise with 65
+  test authors.
+- Scoring more authors with Jev (about $0.024 per author) is the cheapest way to sharpen this.
 
-## What the linear model keeps
+## What the sparse linear model keeps
 
-With k=3 (the CV choice):
-- emotion named (1.23×; chosen in 3/5 folds);
-- identifies a problem or gap (0.87×; 1/5);
-- advocates a method or practice (0.87×; 2/5);
-- plus controls: video 1.31×, multi-image 1.31×, single image 1.14×, longer posts, evening and weekend posting.
+CV tried caps of 1–10 features and a cap of 3 scored best. The lasso path jumps from 2 active
+features to 4, so the model has 2:
 
-The 3-feature picks change from fold to fold. A cap of 8 (`--linear-k 8`) settles on 6 features
-with CV 0.596, about the same, and steadier picks:
-- **new job or role: 2.07×, chosen in 5/5 folds**;
-- emotion: 1.11×, 4/5;
-- problem or gap: 0.89×, 4/5;
-- gratitude: 1.17×, 3/5;
-- advocates a method: 0.91×, 3/5;
-- actionable advice: 0.94×, 2/5.
+| Feature | Weight | Multiplier | Same sign in CV folds |
+|---|---|---|---|
+| Does the post explicitly mention an emotion felt by the author or their team? | +0.250 | 1.28× | 5/5 |
+| Does the post explicitly thank or express appreciation to a person, group, or organization? | +0.233 | 1.26× | 3/5 |
 
+A weight is the change in lift when P(yes) goes from 0 to 1; the multiplier is e^weight.
 These are associations within authors, not proven causes.
+
+## Note on media in Jev's input
+
+Jev was given each post as `{media_attached, post_text}`, and DeepSeek saw "Media attached: …"
+during discovery. The models no longer use media in any form. Jev's answers to content questions
+could still be slightly influenced by that line. Removing it fully means re-scoring the posts
+without it (about $4.32 for the same subset).

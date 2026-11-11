@@ -98,8 +98,8 @@ def evaluate_tab() -> None:
     left, right = st.columns([3, 1])
     text = left.text_area("Post text", height=260, placeholder="Paste a LinkedIn post draft…")
     media = right.selectbox("Attached media", ["text", *MEDIA],
-                            help="text = no media; images = carousel of several images")
-    right.metric("Words", len(text.split()))
+                            help="Passed to Jev only, the same way training posts were scored. "
+                                 "The models use content features only, not media.")
     go = right.button("Evaluate with Jev", type="primary", disabled=not text.strip(), use_container_width=True)
 
     if go:
@@ -199,8 +199,9 @@ def pipeline_tab() -> None:
         ("5 · Judge", f"Jev 1.13 scored P(yes) for every feature on {jt.get('posts', 0) + jte.get('posts', 0):,} "
                       f"posts ({jt.get('authors', '–')} train + {jte.get('authors', '–')} test authors) for "
                       f"${jt.get('usage', {}).get('cost_usd', 0) + jte.get('usage', {}).get('cost_usd', 0):.2f}."),
-        ("6 · Model", f"A sparse linear model (≤10 features) and RuleFit predict lift from {data.get('features_used', '–')} features plus "
-                      "controls (media, length, time), tuned with author-grouped CV, then tested once."),
+        ("6 · Model", f"A sparse linear model (≤10 features) and RuleFit predict lift from "
+                      f"{data.get('features_used', '–')} **content features only**: no media, length, or posting-time "
+                      "inputs, and attachment questions excluded. Tuned with author-grouped CV, then tested once."),
     ]
     for title, body in steps:
         st.markdown(f"**{title}** — {body}")
@@ -208,13 +209,14 @@ def pipeline_tab() -> None:
     if not metrics:
         return
     st.markdown(f"#### Results on {data.get('test_authors', '–')} held-out authors ({data.get('test_posts', 0):,} posts)")
-    names = {"controls": "Controls only (media, length, time)", "linear": "Sparse linear (relaxed lasso)", "rulefit": "RuleFit"}
+    names = {"linear": "Sparse linear (relaxed lasso)", "rulefit": "RuleFit",
+             "controls": "Reference: format only (media, length, time), not used in any model"}
     res = pd.DataFrame([{
         "model": names[k],
         "pairwise accuracy (test)": metrics[k]["test"]["pairwise_accuracy"],
         "pairwise accuracy (CV)": metrics[k]["cv_train"]["pairwise_accuracy"],
         "per-author Spearman (test)": metrics[k]["test"]["author_spearman"],
-        "gain vs controls (95% CI)": (
+        "vs format reference (95% CI)": (
             "—" if k == "controls" else
             "{mean:+.3f} [{lo:+.3f}, {hi:+.3f}]".format(mean=metrics[k]["test"]["gain_over_controls"]["mean"],
                                                         lo=metrics[k]["test"]["gain_over_controls"]["ci95"][0],
@@ -223,8 +225,8 @@ def pipeline_tab() -> None:
     st.dataframe(res, hide_index=True, use_container_width=True,
                  column_config={c: st.column_config.NumberColumn(format="%.3f") for c in res.columns[1:4]})
     st.caption("Pairwise accuracy: for two posts by the same author, how often the model ranks the one that did "
-               "better higher. 0.5 = chance. Content beats chance clearly; its gain over the controls-only baseline "
-               "is positive but its interval still includes zero at this sample size.")
+               "better higher. 0.5 = chance. Both content-only models beat chance; content alone ranks posts about as "
+               "well as format alone (the reference row), and the difference is within noise at this sample size.")
 
     coefs_path = PROCESSED / "models" / "linear_coefs.csv"
     if coefs_path.exists():

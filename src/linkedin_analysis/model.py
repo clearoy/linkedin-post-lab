@@ -22,6 +22,10 @@ from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.linear_model import Lasso, LassoCV, LinearRegression, Ridge, lasso_path
 
 MEDIA = ["image", "images", "video", "document"]  # "text" is the baseline
+
+# Discovered features that describe the attachment, not the content. Models are
+# content-only, so these are excluded (as are the format/time controls by default).
+ATTACHMENT_FEATURES = {"media_links.has_attached_image", "media_links.media_type_video"}
 HOUR_BUCKETS = {"night": (0, 5), "afternoon": (12, 17), "evening": (18, 23)}  # morning is the baseline
 
 
@@ -126,7 +130,11 @@ class RelaxedLasso:
         _, coefs, _ = lasso_path(rf / sd, ry, n_alphas=200, max_iter=20000)
         active = (coefs != 0).sum(axis=0)
         self.selected_ = np.flatnonzero(coefs[:, np.where(active <= self.k)[0].max()])
-        ols = LinearRegression().fit(np.c_[F[:, self.selected_], C], y)
+        X = np.c_[F[:, self.selected_], C]
+        if X.shape[1] == 0:  # nothing selected and no controls: predict the mean
+            self.feature_coef_, self.control_coef_, self.intercept_ = np.zeros(0), np.zeros(0), float(y.mean())
+            return self
+        ols = LinearRegression().fit(X, y)
         self.feature_coef_ = ols.coef_[: len(self.selected_)]
         self.control_coef_ = ols.coef_[len(self.selected_):]
         self.intercept_ = float(ols.intercept_)

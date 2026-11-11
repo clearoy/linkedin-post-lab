@@ -238,7 +238,63 @@ def pipeline_tab() -> None:
                "better higher. 0.5 = chance. Both content-only models beat chance; content alone ranks posts about as "
                "well as format alone (the reference row), and the difference is within noise at this sample size.")
 
+    baselines_section(data)
     themes_section()
+
+
+BASELINES = {  # key in baselines.json: (label, input, trained on)
+    "themes_linear (current)": ("Themes, sparse linear (current)", "5 Jev theme scores", "subset"),
+    "tfidf_ridge_all": ("TF-IDF + ridge, all data", "Raw words and word pairs", "all"),
+    "jev_ridge": ("Ridge on all Jev questions", "All single Jev P(yes)", "subset"),
+    "jev_gbm": ("Gradient boosting on Jev questions", "All single Jev P(yes), non-linear", "subset"),
+    "tfidf_ridge_subset": ("TF-IDF + ridge, same data", "Raw words and word pairs", "subset"),
+    "format_reference": ("Format reference (not content)", "Media, length, posting time", "subset"),
+}
+
+
+def baselines_section(data: dict) -> None:
+    res = read_json(PROCESSED / "models" / "baselines.json")
+    if not res:
+        return
+    st.markdown("#### Compared with standard ML baselines")
+    subset = f"{data.get('train_authors', '–')} authors ({data.get('train_posts', 0):,} posts)"
+    rows = []
+    for key, (label, inputs, trained) in BASELINES.items():
+        r = res.get(key)
+        if not r:
+            continue
+        ci = r["test"].get("pairwise_accuracy_ci95") or [None, None]
+        rows.append({
+            "model": label, "input": inputs,
+            "train data": (f"{r.get('train_authors', '–')} authors ({r.get('train_posts', 0):,} posts)"
+                           if trained == "all" else subset),
+            "CV": r["cv_train"]["pairwise_accuracy"], "test": r["test"]["pairwise_accuracy"],
+            "low": ci[0], "high": ci[1],
+        })
+    df = pd.DataFrame(rows).sort_values("test", ascending=False)
+    df["test 95% CI"] = df.apply(lambda r: f"[{r['low']:.3f}, {r['high']:.3f}]" if r["low"] is not None else "—", axis=1)
+    st.dataframe(df[["model", "input", "train data", "CV", "test", "test 95% CI"]], hide_index=True,
+                 use_container_width=True,
+                 column_config={"CV": st.column_config.NumberColumn(format="%.3f"),
+                                "test": st.column_config.NumberColumn(format="%.3f")})
+
+    order = list(df["model"])
+    base = alt.Chart(df).encode(y=alt.Y("model:N", sort=order, title=None, axis=alt.Axis(labelLimit=300)))
+    whiskers = base.mark_rule(strokeWidth=2, color="#888").encode(
+        x=alt.X("low:Q", title="Test pairwise accuracy (dot) with 95% range", scale=alt.Scale(zero=False)),
+        x2="high:Q")
+    dots = base.mark_circle(size=120).encode(
+        x="test:Q",
+        color=alt.condition(alt.datum.model == "Themes, sparse linear (current)", alt.value("#2e7d32"), alt.value("#555")),
+        tooltip=["model", alt.Tooltip("test:Q", format=".3f"), alt.Tooltip("CV:Q", format=".3f"), "train data"])
+    chance = alt.Chart(pd.DataFrame({"x": [0.5]})).mark_rule(strokeDash=[4, 4], color="#c62828").encode(x="x:Q")
+    st.altair_chart((whiskers + dots + chance).properties(height=alt.Step(34)), use_container_width=True)
+    st.caption(
+        f"All models predict the same target (lift vs. the author's usual), are tuned with the same author-grouped "
+        f"folds, and are tested on the same {data.get('test_authors', '–')} held-out authors "
+        f"({data.get('test_posts', 0):,} posts). The ranges overlap, so the differences are tendencies, not proven gaps. "
+        "TF-IDF needs no Jev, so its 'all data' version can train on every training author. Red dashed line = chance (0.5)."
+    )
 
 
 def themes_section() -> None:

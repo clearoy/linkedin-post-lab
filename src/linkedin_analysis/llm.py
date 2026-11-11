@@ -1,7 +1,8 @@
-"""Small DeepSeek chat client with JSON output, retries, and a disk cache.
+"""Small OpenAI-compatible chat client with retries, usage counts, and a disk cache.
 
-Settings come from `.env` at the project root (see `.env.example`):
-DEEPSEEK_API_KEY, DEEPSEEK_MODEL, DEEPSEEK_BASE_URL.
+Two providers, configured in `.env` at the project root (see `.env.example`):
+  deepseek    DEEPSEEK_API_KEY, DEEPSEEK_MODEL, DEEPSEEK_BASE_URL     (feature discovery)
+  openrouter  OPENROUTER_API_KEY, JEV_MODEL, OPENROUTER_BASE_URL      (Jev judge)
 """
 
 import hashlib
@@ -17,27 +18,34 @@ from dotenv import load_dotenv
 
 from .paths import PROCESSED, ROOT
 
-DEFAULT_MODEL = "deepseek-v4-pro"
-DEFAULT_BASE_URL = "https://api.deepseek.com"
 CACHE_DIR = PROCESSED / "llm_cache"
+
+PROVIDERS = {
+    # provider: (key var, model var, base url var, default model, default base url)
+    "deepseek": ("DEEPSEEK_API_KEY", "DEEPSEEK_MODEL", "DEEPSEEK_BASE_URL", "deepseek-v4-pro", "https://api.deepseek.com"),
+    "openrouter": ("OPENROUTER_API_KEY", "JEV_MODEL", "OPENROUTER_BASE_URL", "typesafe/jev-router", "https://openrouter.ai/api/v1"),
+}
 
 
 @dataclass(frozen=True)
 class LLMSettings:
+    provider: str
     api_key: str
-    model: str = DEFAULT_MODEL
-    base_url: str = DEFAULT_BASE_URL
+    model: str
+    base_url: str
 
     @classmethod
-    def from_env(cls, env_file: Path = ROOT / ".env", model: str | None = None) -> "LLMSettings":
+    def from_env(cls, provider: str, model: str | None = None, env_file: Path = ROOT / ".env") -> "LLMSettings":
+        key_var, model_var, url_var, default_model, default_url = PROVIDERS[provider]
         load_dotenv(env_file)
-        key = os.getenv("DEEPSEEK_API_KEY", "").strip()
+        key = os.getenv(key_var, "").strip()
         if not key:
-            raise RuntimeError(f"DEEPSEEK_API_KEY is empty. Put your key in {env_file}.")
+            raise RuntimeError(f"{key_var} is empty. Put your key in {env_file}.")
         return cls(
+            provider=provider,
             api_key=key,
-            model=model or os.getenv("DEEPSEEK_MODEL") or DEFAULT_MODEL,
-            base_url=os.getenv("DEEPSEEK_BASE_URL") or DEFAULT_BASE_URL,
+            model=model or os.getenv(model_var) or default_model,
+            base_url=os.getenv(url_var) or default_url,
         )
 
 
@@ -60,21 +68,25 @@ class Usage:
     cached: int = 0
     prompt_tokens: int = 0
     completion_tokens: int = 0
+    cost_usd: float = 0.0
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
-    def add(self, cached: bool, prompt: int = 0, completion: int = 0) -> None:
+    def add(self, cached: bool, usage: dict | None = None) -> None:
+        usage = usage or {}
         with self._lock:
             self.calls += 1
             self.cached += cached
-            self.prompt_tokens += prompt
-            self.completion_tokens += completion
+            if not cached:
+                self.prompt_tokens += usage.get("prompt_tokens") or 0
+                self.completion_tokens += usage.get("completion_tokens") or 0
+                self.cost_usd += usage.get("cost") or 0.0  # OpenRouter reports cost
 
     def to_dict(self) -> dict:
         return {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
 
 
 class LLMClient:
-    """Chat completions that return parsed JSON.
+    """Chat completions with a request-hash disk cache.
 
     Identical requests are served from `cache_dir`, so re-running a script
     costs nothing and gives the same result.
@@ -95,36 +107,41 @@ class LLMClient:
         key = hashlib.sha256(json.dumps(request, sort_keys=True).encode()).hexdigest()
         return self.cache_dir / f"{key}.json"
 
+    def complete(self, request: dict, validate=None) -> dict:
+        """Send a raw chat.completions request; return the response as a plain dict.
+
+        `validate(response_dict)` may raise to trigger a retry (e.g. bad JSON).
+        Only responses that pass validation are cached.
+        """
+        request = {"model": self.settings.model, **request}
+        path = self._cache_path(request)
+        if path is not None and path.exists():
+            self.usage.add(cached=True)
+            return json.loads(path.read_text())["response"]
+
+        last_error: Exception | None = None
+        for attempt in range(self.max_retries):
+            try:
+                response = self.client.chat.completions.create(**request).model_dump()
+                if validate is not None:
+                    validate(response)
+                self.usage.add(cached=False, usage=response.get("usage"))
+                if path is not None:
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text(json.dumps({"request": request, "response": response}))
+                return response
+            except Exception as e:  # network errors, rate limits, invalid output
+                last_error = e
+                time.sleep(2**attempt)
+        raise RuntimeError(f"LLM call failed after {self.max_retries} attempts: {last_error}") from last_error
+
     def chat_json(self, system: str, user: str, temperature: float = 0.0, max_tokens: int = 8000) -> dict:
+        """Chat call that returns the reply parsed as a JSON object."""
         request = {
-            "model": self.settings.model,
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "temperature": temperature,
             "max_tokens": max_tokens,
             "response_format": {"type": "json_object"},
         }
-        path = self._cache_path(request)
-        if path is not None and path.exists():
-            self.usage.add(cached=True)
-            return json.loads(path.read_text())["parsed"]
-
-        last_error: Exception | None = None
-        for attempt in range(self.max_retries):
-            try:
-                response = self.client.chat.completions.create(**request)
-                text = response.choices[0].message.content or ""
-                parsed = parse_json(text)
-                usage = response.usage
-                self.usage.add(
-                    cached=False,
-                    prompt=getattr(usage, "prompt_tokens", 0) or 0,
-                    completion=getattr(usage, "completion_tokens", 0) or 0,
-                )
-                if path is not None:
-                    path.parent.mkdir(parents=True, exist_ok=True)
-                    path.write_text(json.dumps({"request": request, "raw": text, "parsed": parsed}))
-                return parsed
-            except Exception as e:  # network errors, rate limits, truncated JSON
-                last_error = e
-                time.sleep(2**attempt)
-        raise RuntimeError(f"LLM call failed after {self.max_retries} attempts") from last_error
+        response = self.complete(request, validate=lambda r: parse_json(r["choices"][0]["message"]["content"] or ""))
+        return parse_json(response["choices"][0]["message"]["content"])

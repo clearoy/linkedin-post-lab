@@ -1,0 +1,78 @@
+{
+ "dashboard theme model (86 questions, 7 weights)": {
+  "pairwise": 0.6133,
+  "ci95": [
+   0.5931,
+   0.6344
+  ],
+  "spearman": 0.2753,
+  "vs_dashboard": null
+ },
+ "research joint model (71 yes/no properties + length)": {
+  "pairwise": 0.6138,
+  "ci95": [
+   0.5914,
+   0.6372
+  ],
+  "spearman": 0.2789,
+  "vs_dashboard": {
+   "mean": 0.0005,
+   "ci95": [
+    -0.0208,
+    0.0195
+   ]
+  }
+ },
+ "research checklist (count of 9 items)": {
+  "pairwise": 0.5918,
+  "ci95": [
+   0.5712,
+   0.6138
+  ],
+  "spearman": 0.2388,
+  "vs_dashboard": {
+   "mean": -0.0215,
+   "ci95": [
+    -0.0383,
+    -0.0057
+   ]
+  }
+ },
+ "ridge, old 147 questions": {
+  "pairwise": 0.6121,
+  "ci95": [
+   0.5904,
+   0.6328
+  ],
+  "spearman": 0.2808,
+  "vs_dashboard": {
+   "mean": -0.0012,
+   "ci95": [
+    -0.0177,
+    0.0152
+   ]
+  }
+ },
+ "ridge, old + text + new (198)": {
+  "pairwise": 0.6157,
+  "ci95": [
+   0.5957,
+   0.6365
+  ],
+  "spearman": 0.2829,
+  "vs_dashboard": {
+   "mean": 0.0024,
+   "ci95": [
+    -0.0159,
+    0.0209
+   ]
+  }
+ },
+ "new_questions_gain_in_ridge": {
+  "mean": 0.0036,
+  "ci95": [
+   -0.0098,
+   0.0161
+  ]
+ }
+}

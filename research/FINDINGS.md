@@ -168,6 +168,30 @@ DeepSeek's proposals were mostly surface-level or rare, and 5 of them were confi
 | r2 confirm | 7,828 | 16 | $0.88 |
 | **Total** | | | **$4.19 of $5.00** |
 
+## Prediction: compared with the dashboard model
+
+Same 165 held-out authors (3,032 posts), the dashboard metric (how often the model ranks the better of two posts by the same author
+higher), each row compared with the dashboard model by a paired bootstrap over authors. Scripts: `compare_dashboard.py`, `subset.py`.
+
+| Model | Test accuracy | vs dashboard (95% CI) |
+|---|---|---|
+| Dashboard theme model (86 questions, 7 weights) | 0.613 | |
+| **Blend: dashboard + ridge on old + new questions + text checks + length** | **0.623** | +0.010 [−0.001, +0.020] |
+| Ridge on old + new questions + text checks + length (199) | 0.619 | +0.006 [−0.014, +0.024] |
+| Research joint model (71 properties + length) | 0.614 | +0.001 [−0.021, +0.020] |
+| 15 questions, chosen on train | 0.611 | −0.003 [−0.024, +0.018] |
+| 5 questions, chosen on train | 0.607 | −0.006 [−0.024, +0.011] |
+| 3 questions, chosen on train | 0.601 | −0.012 [−0.029, +0.005] |
+| Research checklist (count of 9 items) | 0.592 | −0.022 [−0.038, −0.006] |
+
+* **Combining old and new helps a little, not conclusively:** the best is a plain average of the dashboard model and the full ridge model,
+  about one point better, with a CI that just touches zero. No weights were tuned.
+* **A short list does almost as well.** Forward selection on train authors only (out-of-fold accuracy, 5 author folds) reaches the
+  dashboard's level with about 15 questions; the first 5 already get within a point of it. The first five, in order: personal anecdote (1.21×),
+  length (1.24× per 2.7-fold more words), points out a problem or gap (0.77×), own career milestone (1.75×), hypothetical example (0.85×).
+  Full order and weights: `results/subset_items.csv`. Using only the old questions (all 667 train authors) needs about 20.
+* The text-only content signal seems to top out around 0.61–0.62 with these questions.
+
 ## Caveats
 
 * **Association, not causation.** A milestone post may do well because milestones are newsworthy, not because of how it is written.

@@ -35,6 +35,7 @@ the same author. It is not proof that adding it to any post will cause more reac
 | 4. Jev scores candidates on 250 *screening* train authors; liberal screen | `score.py`, `screen.py` | paid |
 | 5. Jev scores the survivors on the remaining train authors and all test authors; same discovery → confirmation test as step 1 | `score.py`, `effects.py --name new` | paid |
 | 6. Joint model, train-only checklist evaluated on test authors, levers by post type | `joint.py`, `playbook.py`, `tables.py` | $0 |
+| 7. Prediction vs the dashboard model: combinations and small train-chosen subsets, scored on test authors | `compare_dashboard.py`, `subset.py` | $0 |
 
 Author sets are disjoint and fixed (seeded, `data/processed/research/authors.json`). Test authors are
 never shown to DeepSeek and never used to choose anything. Every paid run is logged in
@@ -56,6 +57,8 @@ uv run python research/joint.py --effects existing r1 r2 --name r2 --judgments $
 uv run python research/joint.py --effects existing r1 r2 --name r2_train --select train --judgments $J
 uv run python research/playbook.py --effects existing r1 r2 --joint r2_train --judgments $J
 uv run python research/tables.py --effects existing r1 r2 --joint r2 > research/results/tables.md
+uv run python research/compare_dashboard.py
+uv run python research/subset.py
 ```
 
 Data stays in `data/processed/research/` (gitignored). `results/` holds only statistics and question

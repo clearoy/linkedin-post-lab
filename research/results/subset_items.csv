@@ -1,0 +1,39 @@
+pool,rank,id,question,multiplier_yes_vs_no,share_yes,cv_after_adding
+old + text + new,1,narrative.includes_personal_anecdote,"Does the post describe a specific personal experience, activity, or observation from the author's own life or work?",1.214,0.384,0.5668
+old + text + new,2,length.log_words,Post length (log of word count),1.242,,0.5796
+old + text + new,3,argument_claims.identifies_problem_or_gap,"Does the post identify a problem, risk, deficiency, gap, or unmet need?",0.772,0.619,0.5916
+old + text + new,4,r1_seed.own_career_milestone,"Does the post announce a change or milestone in the author's own career, such as a new job, promotion, work anniversary, or leaving a role?",1.753,0.022,0.5986
+old + text + new,5,narrative.includes_hypothetical_example,"Does the post include a made-up scenario or example, not tied to a real, named entity, to illustrate a point?",0.851,0.197,0.6034
+old + text + new,6,r2_seed.credits_others_for_own_success,Does the author credit specific other people for helping them reach an achievement of their own?,1.538,0.041,0.607
+old + text + new,7,topic.explains_technical_concept_or_system,"Does the post explain how a technical concept, system, product, or architecture works, including its components or steps?",0.857,0.105,0.6095
+old + text + new,8,media_links.contains_external_link,Does the post include a URL or hyperlink to an external website?,0.898,0.231,0.612
+old + text + new,9,specificity_evidence.mentions_funding_or_investment,"Does the post mention that a company raised capital, funding, or investment?",1.17,0.047,0.6136
+old + text + new,10,r2_seed.ends_with_takeaway_sentence,Does the post end with a one-sentence general lesson or takeaway?,0.939,0.202,0.6143
+old + text + new,11,text.short_paragraphs,text.short_paragraphs,1.07,0.375,0.6157
+old + text + new,12,r1_auto.mentions_animals,"Does the post mention a non-human animal, either literally or as a prominent image?",1.164,0.031,0.6162
+old + text + new,13,text.first_line_has_number,text.first_line_has_number,1.062,0.261,0.6173
+old + text + new,14,text.has_exclamation,text.has_exclamation,1.035,0.222,0.6182
+old + text + new,15,r1_seed.names_three_plus_people,Does the post name three or more specific people?,1.381,0.096,0.6188
+old + text + new,16,narrative.tells_story_about_individual,Does the post narrate a story about a specific individual's experience or journey?,1.197,0.16,0.6193
+old + text + new,17,narrative.tells_client_or_founder_story,"Does the post narrate a story about a specific client, customer, or founder?",0.847,0.077,0.6201
+old + text + new,18,specificity_evidence.lists_job_qualifications_or_requirements,"Does the post list specific qualifications, skills, experience, or eligibility criteria for a job or opportunity?",1.067,0.071,0.6204
+old + text only,1,narrative.includes_personal_anecdote,"Does the post describe a specific personal experience, activity, or observation from the author's own life or work?",1.237,0.373,0.5631
+old + text only,2,length.log_words,Post length (log of word count),1.257,,0.5765
+old + text only,3,argument_claims.identifies_problem_or_gap,"Does the post identify a problem, risk, deficiency, gap, or unmet need?",0.822,0.63,0.5873
+old + text only,4,argument_claims.offers_professional_advice,Does the post offer actionable advice or recommendations for professional practice?,0.844,0.355,0.5927
+old + text only,5,specificity_evidence.mentions_collaboration,Does the post mention working with another named person or company?,1.27,0.136,0.5955
+old + text only,6,topic.explains_technical_concept_or_system,"Does the post explain how a technical concept, system, product, or architecture works, including its components or steps?",0.912,0.11,0.5975
+old + text only,7,argument_claims.describes_technology_limitation_or_risk,"Does the post describe a limitation, risk, or failure mode of a technology or AI system?",0.898,0.189,0.5993
+old + text only,8,narrative.includes_hypothetical_example,"Does the post include a made-up scenario or example, not tied to a real, named entity, to illustrate a point?",0.879,0.203,0.601
+old + text only,9,media_links.contains_external_link,Does the post include a URL or hyperlink to an external website?,0.863,0.235,0.6022
+old + text only,10,text.short_paragraphs,text.short_paragraphs,1.054,0.374,0.6029
+old + text only,11,narrative.tells_story_about_individual,Does the post narrate a story about a specific individual's experience or journey?,1.203,0.159,0.6041
+old + text only,12,promotion_intent.announces_achievement_or_recognition,"Does the post state that the author, their team, or organization has achieved something concrete, such as an award, funding, certification, or milestone?",1.18,0.126,0.6052
+old + text only,13,text.first_line_under_60_chars,text.first_line_under_60_chars,1.046,0.353,0.6065
+old + text only,14,specificity_evidence.mentions_job_title_or_role,"Does the post mention a specific job title or professional role, such as 'engineer', 'product manager', or 'founder'?",1.08,0.51,0.6074
+old + text only,15,text.first_line_has_number,text.first_line_has_number,1.056,0.264,0.6081
+old + text only,16,topic.discusses_hiring_or_job_market,"Does the post discuss recruiting, hiring, job titles, or the labor market?",1.1,0.179,0.6092
+old + text only,17,call_to_action.outlines_step_by_step_process,Does the post outline a step-by-step process or roadmap for the reader?,0.872,0.07,0.6098
+old + text only,18,topic.mentions_medical_setting,"Does the post explicitly mention a medical or healthcare facility, treatment, or condition?",0.972,0.06,0.6104
+old + text only,19,text.has_exclamation,text.has_exclamation,1.047,0.216,0.6104
+old + text only,20,voice_perspective.uses_first_person_role_perspective,Does the post frame the content from the first-person perspective of a specific professional role the author holds?,1.038,0.11,0.6109

@@ -1,0 +1,17 @@
+id,reason,advance
+r2_seed.credits_others_for_own_success,passed screen,True
+r2_seed.live_update_today,passed screen,True
+r2_seed.describes_turning_point,passed screen,True
+r2_seed.looks_forward_with_excitement,passed screen,True
+r2_seed.education_milestone,passed screen,True
+r2_seed.learned_from_a_person,passed screen,True
+r2_seed.self_deprecating_humor,passed screen,True
+r2_auto.highlights_free_help_or_charity,passed screen,True
+r2_auto.asks_readers_to_reply_with_number_or_keyword_from_list,passed screen,True
+r2_auto.describes_unexpected_result_from_test,passed screen,True
+r2_seed.ends_with_takeaway_sentence,"common writing advice; null in screen, measured with more data",True
+r2_auto.opens_with_contradiction,"common writing advice; null in screen, measured with more data",True
+r2_auto.states_number_of_items_before_list,"common writing advice; null in screen, measured with more data",True
+r2_auto.uses_curiosity_gap_opening,"common writing advice; null in screen, measured with more data",True
+r2_auto.asks_reader_to_tag_someone,"common writing advice; null in screen, measured with more data",True
+r2_seed.asks_readers_to_share_their_story,"common writing advice; null in screen, measured with more data",True

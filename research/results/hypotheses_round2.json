@@ -1,0 +1,332 @@
+{
+ "round": 2,
+ "pairs_shown": 150,
+ "raw_proposals": 63,
+ "features": [
+  {
+   "id": "r2_seed.credits_others_for_own_success",
+   "name": "credits_others_for_own_success",
+   "dimension": "seed",
+   "question": "Does the author credit specific other people for helping them reach an achievement of their own?",
+   "definition": "The author names or describes people who helped them succeed and attributes part of the success to them.",
+   "yes_example": "I would never have finished this degree without my mentor Sara.",
+   "no_example": "I finished my degree this week.",
+   "hypothesis": "Gratitude aimed at helpers may be what drives the thanks effect."
+  },
+  {
+   "id": "r2_seed.spotlights_one_person",
+   "name": "spotlights_one_person",
+   "dimension": "seed",
+   "question": "Is most of the post about one specific person other than the author?",
+   "definition": "A single named or described individual, not the author, is the main subject of most of the post.",
+   "yes_example": "Meet Lina, our first engineer, who rebuilt our platform in a month.",
+   "no_example": "Our engineering team rebuilt the platform in a month.",
+   "hypothesis": "Single-person spotlights narrow the story-about-individual effect."
+  },
+  {
+   "id": "r2_seed.education_milestone",
+   "name": "education_milestone",
+   "dimension": "seed",
+   "question": "Does the post announce that the author completed a degree, course, or certification?",
+   "definition": "The author reports finishing an educational program or earning a credential.",
+   "yes_example": "Officially a certified project manager as of today.",
+   "no_example": "Here are five courses worth taking this year.",
+   "hypothesis": "Credential news may collect congratulations like career news."
+  },
+  {
+   "id": "r2_seed.describes_turning_point",
+   "name": "describes_turning_point",
+   "dimension": "seed",
+   "question": "Does the post describe a specific decision or moment that changed the direction of the author's life or career?",
+   "definition": "The author identifies one moment or choice as a turning point in their path.",
+   "yes_example": "The day I turned down that offer changed everything.",
+   "no_example": "Careers rarely follow a straight line.",
+   "hypothesis": "Turning points are a sharper form of personal story."
+  },
+  {
+   "id": "r2_seed.ends_with_takeaway_sentence",
+   "name": "ends_with_takeaway_sentence",
+   "dimension": "seed",
+   "question": "Does the post end with a one-sentence general lesson or takeaway?",
+   "definition": "The final sentence states a general lesson drawn from what came before.",
+   "yes_example": "...Lesson: the best hires are often the ones you almost passed on.",
+   "no_example": "...See you all at the next meetup!",
+   "hypothesis": "Common hook-and-lesson advice; test the ending."
+  },
+  {
+   "id": "r2_seed.live_update_today",
+   "name": "live_update_today",
+   "dimension": "seed",
+   "question": "Does the post describe something happening to the author today or right now?",
+   "definition": "The post reports an event the author is experiencing on the day of posting, in the present.",
+   "yes_example": "Today I'm on stage at the Lisbon summit, talking about climate data.",
+   "no_example": "Last year I spoke at a summit in Lisbon.",
+   "hypothesis": "Live, in-the-moment updates may feel more personal."
+  },
+  {
+   "id": "r2_seed.self_deprecating_humor",
+   "name": "self_deprecating_humor",
+   "dimension": "seed",
+   "question": "Does the author make a joke at their own expense?",
+   "definition": "The author uses humor that pokes fun at themselves, their skills, or their situation.",
+   "yes_example": "My code worked on the first try, so naturally I assumed something was broken.",
+   "no_example": "Our code passed every test on the first try.",
+   "hypothesis": "Narrower than general humor, which had no effect."
+  },
+  {
+   "id": "r2_seed.looks_forward_with_excitement",
+   "name": "looks_forward_with_excitement",
+   "dimension": "seed",
+   "question": "Does the author say they are excited or looking forward to something coming next?",
+   "definition": "The author states excitement or anticipation about a future step, event, or chapter.",
+   "yes_example": "Can't wait to start this next chapter in Berlin.",
+   "no_example": "This chapter in Berlin is over.",
+   "hypothesis": "Forward-looking excitement is typical of announcements; test it alone."
+  },
+  {
+   "id": "r2_seed.learned_from_a_person",
+   "name": "learned_from_a_person",
+   "dimension": "seed",
+   "question": "Does the post describe something the author learned from a specific person?",
+   "definition": "The author attributes a lesson or insight to an interaction with a particular individual.",
+   "yes_example": "My first manager taught me to always write the agenda first.",
+   "no_example": "Always write the agenda first.",
+   "hypothesis": "Lessons attached to people may avoid the generic-advice penalty."
+  },
+  {
+   "id": "r2_seed.asks_readers_to_share_their_story",
+   "name": "asks_readers_to_share_their_story",
+   "dimension": "seed",
+   "question": "Does the post ask readers to share a personal experience of their own?",
+   "definition": "Readers are invited to describe something that happened to them.",
+   "yes_example": "What was the moment you knew you were in the right job?",
+   "no_example": "What do you think of the new policy?",
+   "hypothesis": "Experience questions may work better than opinion questions, which hurt."
+  },
+  {
+   "id": "r2_auto.uses_exclusive_event",
+   "name": "uses_exclusive_event",
+   "dimension": "auto",
+   "question": "Does the post explicitly state that attendance at an event is limited, by invitation only, or subject to approval/RSVP?",
+   "definition": "The post indicates that not everyone can attend; access is restricted by capacity, invitation, or screening.",
+   "yes_example": "A limited number of invitations remain; attendance is by approved RSVP only.",
+   "no_example": "Everyone is welcome to join our open meetup on Friday.",
+   "hypothesis": "I expect this to predict higher reactions because scarcity and exclusivity increase perceived value and FOMO."
+  },
+  {
+   "id": "r2_auto.enumerates_root_causes",
+   "name": "enumerates_root_causes",
+   "dimension": "auto",
+   "question": "Does the post present one ambiguous observation (such as a customer complaint) and then list at least three distinct possible underlying causes?",
+   "definition": "The post takes a single symptom or statement and breaks it into multiple potential explanations.",
+   "yes_example": "Customer says 'I don't understand.' It could be a product, messaging, or trust problem.",
+   "no_example": "The product failed because the UI was confusing.",
+   "hypothesis": "I expect this to predict higher reactions because diagnostic frameworks are perceived as insightful and useful."
+  },
+  {
+   "id": "r2_auto.reports_external_accreditation",
+   "name": "reports_external_accreditation",
+   "dimension": "auto",
+   "question": "Does the post report that an external organization (not the author's own) achieved a specific accreditation, certification, or recognized standard?",
+   "definition": "The post states that a third-party entity received formal recognition, credential, or accreditation.",
+   "yes_example": "PECB became the first certification body with UKAS accreditation for ISO 42001.",
+   "no_example": "Our company recently obtained ISO certification.",
+   "hypothesis": "I expect this to predict higher reactions because third-party validation lends authority and news value."
+  },
+  {
+   "id": "r2_auto.curates_resources_with_descriptions",
+   "name": "curates_resources_with_descriptions",
+   "dimension": "auto",
+   "question": "Does the post list at least three external resources (links, tools, courses) and provide a short description of each resource's purpose?",
+   "definition": "The post offers multiple resources, each accompanied by a one-sentence explanation of what it is for.",
+   "yes_example": "Remote Rocketship \u2013 free resource for remote talent; Remotive \u2013 curated remote tech jobs.",
+   "no_example": "Here are links: link1, link2, link3.",
+   "hypothesis": "I expect this to predict higher reactions because annotated lists save time and increase usefulness."
+  },
+  {
+   "id": "r2_auto.invites_speaker_submission",
+   "name": "invites_speaker_submission",
+   "dimension": "auto",
+   "question": "Does the post invite readers to submit a proposal, talk, or application to speak or present at an event, rather than just attend?",
+   "definition": "The post includes a call for speakers or presenters, asking readers to apply to give a talk.",
+   "yes_example": "Azure Tour Tenerife has an open call for speakers. Send your proposal by October 24.",
+   "no_example": "Tickets are on sale for the conference.",
+   "hypothesis": "I expect this to predict higher reactions because calls for speakers engage a niche professional audience who share with peers."
+  },
+  {
+   "id": "r2_auto.celebrates_local_pride",
+   "name": "celebrates_local_pride",
+   "dimension": "auto",
+   "question": "Does the post celebrate a local community, city, or regional identity (e.g., a city's day, a local song, a hometown reference) as a point of pride?",
+   "definition": "The post expresses affection or pride for a specific place or local culture, often on a commemorative day.",
+   "yes_example": "Happy 901 Day, Memphis! No place like the M.",
+   "no_example": "We opened a new office in Memphis last month.",
+   "hypothesis": "I expect this to predict higher reactions because local pride triggers emotional resonance and sharing within a community."
+  },
+  {
+   "id": "r2_auto.contrasts_related_metrics",
+   "name": "contrasts_related_metrics",
+   "dimension": "auto",
+   "question": "Does the post present two or more related statistics or metrics and explicitly note that together they reveal a non-obvious insight?",
+   "definition": "The post juxtaposes quantitative data points that seem contradictory or surprising when combined.",
+   "yes_example": "Deal volume fell 8%, but the median multiple hit a record 18.8x; together they signal a flight to quality.",
+   "no_example": "Deal volume fell 8% last quarter.",
+   "hypothesis": "I expect this to predict lower reactions because abstract statistical contrasts without immediate actionable advice can feel less engaging."
+  },
+  {
+   "id": "r2_auto.states_short_time_to_value",
+   "name": "states_short_time_to_value",
+   "dimension": "auto",
+   "question": "Does the post state a specific short time frame (e.g., 'days', 'hours', 'instantly') for a product or service to deliver value or be implemented?",
+   "definition": "The post quantifies how quickly the reader can see results or get set up using a product.",
+   "yes_example": "Connects to your AEM setup and helps most teams go live within days.",
+   "no_example": "Our product is powerful and secure.",
+   "hypothesis": "I expect this to predict higher reactions because concrete time-to-value reduces perceived risk."
+  },
+  {
+   "id": "r2_auto.parallel_question_sequence",
+   "name": "parallel_question_sequence",
+   "dimension": "auto",
+   "question": "Does the post ask at least three questions in a row that begin with the same word or share a repeated grammatical structure?",
+   "definition": "Three or more consecutive interrogative sentences use an identical opening word or parallel syntax.",
+   "yes_example": "What is your goal? What is your plan? What is your deadline?",
+   "no_example": "What is your goal? Then think about your plan and deadline.",
+   "hypothesis": "I expect parallel question sequences to do better; they create rhythm and prompt multiple reflections."
+  },
+  {
+   "id": "r2_auto.asks_readers_to_reply_with_number_or_keyword_from_list",
+   "name": "asks_readers_to_reply_with_number_or_keyword_from_list",
+   "dimension": "auto",
+   "question": "Does the post ask the reader to reply with a specific number, keyword, or short phrase that corresponds to an item or option listed in the post?",
+   "definition": "The post contains a question or directive that asks the reader to select from options presented in the post and respond with the chosen number, letter, emoji, or keyword.",
+   "yes_example": "Which of these three mistakes have you made? Reply 1, 2, or 3.",
+   "no_example": "Let me know your thoughts in the comments.",
+   "hypothesis": "Posts that ask readers to select from a presented list reduce response effort and increase interactions."
+  },
+  {
+   "id": "r2_auto.states_number_of_items_before_list",
+   "name": "states_number_of_items_before_list",
+   "dimension": "auto",
+   "question": "Does the post explicitly state the total number of items (e.g., 'three reasons', 'five steps') before presenting a list or sequence?",
+   "definition": "The post includes a phrase that announces the number of points, components, steps, or reasons that will follow, before those items are enumerated.",
+   "yes_example": "Here are four ways to improve your onboarding.",
+   "no_example": "Let's look at ways to improve onboarding.",
+   "hypothesis": "Announcing a specific count before a list gives readers a clear roadmap, making the post feel more structured."
+  },
+  {
+   "id": "r2_auto.asks_reader_to_tag_someone",
+   "name": "asks_reader_to_tag_someone",
+   "dimension": "auto",
+   "question": "Does the post explicitly ask readers to tag, mention, or share the post with another specific person in the comments?",
+   "definition": "The post includes a directive that asks the reader to tag a colleague, friend, or specific account in the comments, often using the phrase 'tag someone who' or 'tag them below'.",
+   "yes_example": "Tag a colleague who needs to hear this.",
+   "no_example": "Share your thoughts below.",
+   "hypothesis": "Tag requests encourage readers to involve their network, increasing distribution and reactions."
+  },
+  {
+   "id": "r2_auto.opens_with_contradiction",
+   "name": "opens_with_contradiction",
+   "dimension": "auto",
+   "question": "Does the post open with a sentence or pair of sentences that presents a direct contradiction or tension between two concepts, without immediately resolving it?",
+   "definition": "The first line of the post juxtaposes two incompatible statements, expectations, or claims, often using the structure 'X says Y, but Z' or 'X is not Y; it is Z'.",
+   "yes_example": "Your CRM says leads are up, but revenue is down.",
+   "no_example": "Here are some tips for improving your CRM.",
+   "hypothesis": "Leading with an unresolved contradiction hooks readers by creating curiosity."
+  },
+  {
+   "id": "r2_auto.bilingual_content",
+   "name": "bilingual_content",
+   "dimension": "auto",
+   "question": "Does the post include at least one complete sentence written in a second language alongside the primary language?",
+   "definition": "The post contains parallel or translated content in two different languages, with at least one full sentence in each language.",
+   "yes_example": "Looking for my next role. \u05de\u05d7\u05e4\u05e9 \u05d0\u05ea \u05d4\u05e6\u05e2\u05d3 \u05d4\u05d1\u05d0 \u05d1\u05e7\u05e8\u05d9\u05d9\u05e8\u05d4.",
+   "no_example": "Looking for my next role in marketing leadership.",
+   "hypothesis": "I expect bilingual posts to do better than expected; they can broaden audience and feel inclusive."
+  },
+  {
+   "id": "r2_auto.letter_style_opening",
+   "name": "letter_style_opening",
+   "dimension": "auto",
+   "question": "Does the post open with a salutation addressed to a specific role, company type, or audience segment?",
+   "definition": "The first words are a direct address such as 'Dear [specific group]' or 'To [role/type]', treating the post like a letter.",
+   "yes_example": "Dear Series C SaaS founders scaling into Europe:",
+   "no_example": "If you're a Series C founder scaling into Europe, this matters.",
+   "hypothesis": "I expect this letter-style opening to do better; it targets readers precisely."
+  },
+  {
+   "id": "r2_auto.controversy_allegation_named_company",
+   "name": "controversy_allegation_named_company",
+   "dimension": "auto",
+   "question": "Does the post describe a specific allegation, controversy, or ethical dispute involving a named company or its technology?",
+   "definition": "The post reports an accusation or disputed action tied to a named organization, not just a general industry issue.",
+   "yes_example": "OpenAI allegedly used researchers' notes without permission.",
+   "no_example": "OpenAI released a new model today.",
+   "hypothesis": "I expect posts about a named company controversy to do better; controversy drives attention and discussion."
+  },
+  {
+   "id": "r2_auto.mentions_time_of_day",
+   "name": "mentions_time_of_day",
+   "dimension": "auto",
+   "question": "Does the post mention a specific time of day, such as '3am', 'morning', or 'midnight'?",
+   "definition": "The post includes a clock time or period of the day, making the narrative more concrete.",
+   "yes_example": "I woke at 5am to work.",
+   "no_example": "I woke early to work.",
+   "hypothesis": "Including a specific time of day adds concreteness and personal detail, potentially increasing engagement."
+  },
+  {
+   "id": "r2_auto.uses_curiosity_gap_opening",
+   "name": "uses_curiosity_gap_opening",
+   "dimension": "auto",
+   "question": "Does the post open by hinting at surprising or important information without revealing it immediately?",
+   "definition": "The first sentence or two promise an insight or fact but delay stating what it is, forcing the reader to continue for the answer.",
+   "yes_example": "Most people miss one thing about pricing, and it costs them.",
+   "no_example": "Here are three pricing tips: test, anchor, and bundle.",
+   "hypothesis": "I expect this to increase reactions because curiosity gaps drive reading."
+  },
+  {
+   "id": "r2_auto.describes_unexpected_result_from_test",
+   "name": "describes_unexpected_result_from_test",
+   "dimension": "auto",
+   "question": "Does the post narrate an experiment, test, or trial that produced an unexpected or unintended outcome?",
+   "definition": "The post tells a short story about a deliberate test or trial that went differently than planned, often with humorous or surprising consequences.",
+   "yes_example": "We gave an AI a budget and it bought 500 coffee bags.",
+   "no_example": "We tested our AI, and it worked as expected.",
+   "hypothesis": "I expect this to increase reactions because unexpected outcomes are shareable and memorable."
+  },
+  {
+   "id": "r2_auto.highlights_free_help_or_charity",
+   "name": "highlights_free_help_or_charity",
+   "dimension": "auto",
+   "question": "Does the post highlight a person or group giving free help, education, or charity to others without promoting a paid product?",
+   "definition": "The post focuses on someone else's unpaid assistance, free teaching, or charitable act, not on a commercial offering by the author.",
+   "yes_example": "This teacher gives free coding classes to 100 kids every weekend.",
+   "no_example": "We offer affordable coding bootcamps starting at $99.",
+   "hypothesis": "I expect this to increase reactions because inspirational altruism resonates emotionally."
+  },
+  {
+   "id": "r2_auto.asks_reader_to_self_identify_from_options",
+   "name": "asks_reader_to_self_identify_from_options",
+   "dimension": "auto",
+   "question": "Does the post present a set of options or categories and ask the reader to indicate which one applies to them?",
+   "definition": "The post lists at least two distinct groups, roles, or choices and directly invites the reader to say which one describes them or their situation.",
+   "yes_example": "Which founder type are you: builder, seller, or operator? Comment below.",
+   "no_example": "Here are three founder types you should know.",
+   "hypothesis": "I expect this to increase reactions because it invites personal participation."
+  },
+  {
+   "id": "r2_auto.multiple_choice_question_end",
+   "name": "multiple_choice_question_end",
+   "dimension": "auto",
+   "question": "Does the post end with a question that presents two or more specific options for the reader to choose between?",
+   "definition": "Answer yes if the final sentence is a question offering a closed set of choices, such as 'X or Y?' or 'A, B, or C?'",
+   "yes_example": "Would you add security or cost first?",
+   "no_example": "What do you think about this?",
+   "hypothesis": "Ending with a multiple-choice question is expected to do better; it provides a low-friction response prompt."
+  }
+ ],
+ "dropped_by_hand": {
+  "r2_auto.contains_exclamation_mark": "already a free text check",
+  "r2_auto.single_sentence_post": "covered by text checks (under 80 words, single block)",
+  "r2_auto.uses_short_one_sentence_paragraphs": "covered by text check short_paragraphs"
+ }
+}

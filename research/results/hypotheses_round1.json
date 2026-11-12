@@ -1,0 +1,471 @@
+{
+ "round": 1,
+ "pairs_shown": 150,
+ "raw_proposals": 64,
+ "features": [
+  {
+   "id": "r1_seed.own_career_milestone",
+   "name": "own_career_milestone",
+   "dimension": "seed",
+   "question": "Does the post announce a change or milestone in the author's own career, such as a new job, promotion, work anniversary, or leaving a role?",
+   "definition": "The author reports a change or milestone in their own job or career path.",
+   "yes_example": "After four years at the clinic, today is my last day.",
+   "no_example": "Our team shipped the new billing module this week.",
+   "hypothesis": "Career news invites congratulations from the author's network."
+  },
+  {
+   "id": "r1_seed.celebrates_someone_else",
+   "name": "celebrates_someone_else",
+   "dimension": "seed",
+   "question": "Is the post mainly about celebrating an achievement of a person or team other than the author?",
+   "definition": "The main subject is another person's or team's success, award, or milestone, not the author's own.",
+   "yes_example": "Huge congratulations to Priya on defending her PhD today!",
+   "no_example": "I just defended my PhD today.",
+   "hypothesis": "Separates celebrating others from self-promotion; both may lift reactions differently."
+  },
+  {
+   "id": "r1_seed.admits_own_mistake",
+   "name": "admits_own_mistake",
+   "dimension": "seed",
+   "question": "Does the author describe a mistake or failure they personally made?",
+   "definition": "The author admits an error, wrong decision, or failure of their own.",
+   "yes_example": "I hired too fast and it cost us the team.",
+   "no_example": "Many founders hire too fast.",
+   "hypothesis": "Vulnerability is common LinkedIn advice; test it."
+  },
+  {
+   "id": "r1_seed.personal_life_outside_work",
+   "name": "personal_life_outside_work",
+   "dimension": "seed",
+   "question": "Does the post mention the author's life outside work, such as family, health, or hobbies?",
+   "definition": "The post refers to the author's family, health, home life, or personal interests beyond their job.",
+   "yes_example": "My daughter asked me what I do all day.",
+   "no_example": "Our quarterly numbers came in today.",
+   "hypothesis": "Personal context may humanize the author."
+  },
+  {
+   "id": "r1_seed.describes_hardship",
+   "name": "describes_hardship",
+   "dimension": "seed",
+   "question": "Does the post describe a hardship such as illness, loss, layoff, or burnout that affected the author or people close to them?",
+   "definition": "The author recounts a difficult life or career event affecting themselves or someone close.",
+   "yes_example": "Last year I was laid off two weeks before my wedding.",
+   "no_example": "Layoffs are rising across the tech sector.",
+   "hypothesis": "Hardship stories draw support."
+  },
+  {
+   "id": "r1_seed.asks_for_personal_help",
+   "name": "asks_for_personal_help",
+   "dimension": "seed",
+   "question": "Does the author ask readers for help for themselves, such as referrals, a job, or introductions?",
+   "definition": "The post requests personal help, a job lead, or an introduction for the author.",
+   "yes_example": "If you know a team hiring product designers, I would love an intro.",
+   "no_example": "We are hiring product designers, apply here.",
+   "hypothesis": "Requests for help mobilize the network."
+  },
+  {
+   "id": "r1_seed.welcomes_new_member",
+   "name": "welcomes_new_member",
+   "dimension": "seed",
+   "question": "Does the post welcome a new person to a team, company, or group?",
+   "definition": "The post introduces and welcomes a newly joined colleague, member, or partner.",
+   "yes_example": "Please welcome Tom, who joins our design team today.",
+   "no_example": "Tom has led our design team for five years.",
+   "hypothesis": "Welcomes are people-centered like thanks."
+  },
+  {
+   "id": "r1_seed.farewell",
+   "name": "farewell",
+   "dimension": "seed",
+   "question": "Does the post say goodbye to a role, team, place, or person?",
+   "definition": "The author marks leaving or the departure of someone or something with a farewell.",
+   "yes_example": "Saying goodbye to the team that taught me everything.",
+   "no_example": "Excited to start my new role on Monday.",
+   "hypothesis": "Farewells collect goodwill."
+  },
+  {
+   "id": "r1_seed.names_three_plus_people",
+   "name": "names_three_plus_people",
+   "dimension": "seed",
+   "question": "Does the post name three or more specific people?",
+   "definition": "At least three distinct individuals are named in the post.",
+   "yes_example": "Thanks to Ana, Ben, and Chloe for making this happen.",
+   "no_example": "Thanks to the whole team for making this happen.",
+   "hypothesis": "Naming people may bring those people and their networks in."
+  },
+  {
+   "id": "r1_seed.opens_in_a_specific_moment",
+   "name": "opens_in_a_specific_moment",
+   "dimension": "seed",
+   "question": "Does the first sentence place the reader in a specific moment, giving a time, place, or action that happened?",
+   "definition": "The opening sentence describes a concrete scene or moment rather than a general statement.",
+   "yes_example": "At 6am on Tuesday, my phone buzzed with a message from our biggest client.",
+   "no_example": "Client communication is the key to growth.",
+   "hypothesis": "Scene openings are common hook advice; test it."
+  },
+  {
+   "id": "r1_seed.opens_with_bold_claim",
+   "name": "opens_with_bold_claim",
+   "dimension": "seed",
+   "question": "Does the first sentence state a firm opinion or claim on its own line?",
+   "definition": "The post opens with a one-sentence assertion of the author's view, set apart from what follows.",
+   "yes_example": "Cold outreach is dead.",
+   "no_example": "I have been thinking about outreach lately and wanted to share some notes.",
+   "hypothesis": "Bold one-line hooks are common advice; test it."
+  },
+  {
+   "id": "r1_seed.organization_voice",
+   "name": "organization_voice",
+   "dimension": "seed",
+   "question": "Is the post written as an organization speaking, rather than as an individual person?",
+   "definition": "The post speaks as a company or institution (official announcement style) with no individual's perspective.",
+   "yes_example": "Acme Corp is pleased to announce our new partnership with Beta Ltd.",
+   "no_example": "I am so excited that we are partnering with Beta Ltd.",
+   "hypothesis": "Official-sounding posts may underperform personal ones."
+  },
+  {
+   "id": "r1_seed.generic_advice_without_experience",
+   "name": "generic_advice_without_experience",
+   "dimension": "seed",
+   "question": "Does the post give advice without tying it to anything the author experienced or did?",
+   "definition": "The post offers tips or guidance stated in general terms, with no event from the author's own experience.",
+   "yes_example": "Five tips to improve your resume: keep it to one page...",
+   "no_example": "When I rewrote my resume last year, cutting it to one page got me three interviews.",
+   "hypothesis": "Advice underperforms in the data; check whether personal grounding removes the penalty."
+  },
+  {
+   "id": "r1_seed.engagement_bait",
+   "name": "engagement_bait",
+   "dimension": "seed",
+   "question": "Does the post ask readers to comment a word, like, or share in order to receive something?",
+   "definition": "Readers are told to comment a keyword, react, or repost to get a resource or reward.",
+   "yes_example": "Comment 'GUIDE' and I'll send you the template.",
+   "no_example": "Here is the template, link below.",
+   "hypothesis": "Comment-for-resource tactics may raise reactions."
+  },
+  {
+   "id": "r1_seed.behind_the_scenes",
+   "name": "behind_the_scenes",
+   "dimension": "seed",
+   "question": "Does the post show how the author's own work or organization operates internally?",
+   "definition": "The post reveals internal processes, routines, or moments not normally visible from outside.",
+   "yes_example": "Here is what our Monday planning meeting actually looks like.",
+   "no_example": "Our product helps teams plan faster.",
+   "hypothesis": "Insider views may attract curiosity."
+  },
+  {
+   "id": "r1_seed.admits_doubt_or_fear",
+   "name": "admits_doubt_or_fear",
+   "dimension": "seed",
+   "question": "Does the author say they felt doubt, fear, or insecurity?",
+   "definition": "The author states a personal feeling of doubt, fear, nervousness, or insecurity.",
+   "yes_example": "Honestly, I was terrified before going on stage.",
+   "no_example": "The talk went well and the audience was great.",
+   "hypothesis": "Emotional vulnerability is a specific emotion beyond general emotion."
+  },
+  {
+   "id": "r1_seed.reports_own_numeric_result",
+   "name": "reports_own_numeric_result",
+   "dimension": "seed",
+   "question": "Does the post report a numeric result the author or their team achieved?",
+   "definition": "The post gives a number that measures an outcome the author or their team accomplished.",
+   "yes_example": "We grew from 3 to 40 customers in six months.",
+   "no_example": "Most startups take years to find customers.",
+   "hypothesis": "Concrete own results may be more credible than general statistics."
+  },
+  {
+   "id": "r1_seed.mentions_duration_of_journey",
+   "name": "mentions_duration_of_journey",
+   "dimension": "seed",
+   "question": "Does the post state how long the author has spent on something, such as years in a field or months on a project?",
+   "definition": "The post gives a length of time the author has invested in a career, project, or goal.",
+   "yes_example": "Ten years ago I wrote my first line of code.",
+   "no_example": "I wrote some code this weekend.",
+   "hypothesis": "Journey framing signals a milestone."
+  },
+  {
+   "id": "r1_auto.reports_company_shutdown",
+   "name": "reports_company_shutdown",
+   "dimension": "auto",
+   "question": "Does the post report that a named company is shutting down, laying off staff, or ceasing operations?",
+   "definition": "The post states that a specific company has closed, is closing, or is cutting most of its workforce.",
+   "yes_example": "Acme Corp is shutting down and laying off 200 employees.",
+   "no_example": "Acme Corp launched a new product line today.",
+   "hypothesis": "I expect posts about company shutdowns to get more reactions."
+  },
+  {
+   "id": "r1_auto.advertises_remote_job",
+   "name": "advertises_remote_job",
+   "dimension": "auto",
+   "question": "Does the post advertise a job position that is explicitly described as remote?",
+   "definition": "The post lists an open job and states that the work can be done remotely, without requiring a specific office location.",
+   "yes_example": "Hiring: Remote Frontend Developer. Work from anywhere.",
+   "no_example": "Hiring: Frontend Developer in San Francisco.",
+   "hypothesis": "I expect remote job ads to get more reactions than onsite ones."
+  },
+  {
+   "id": "r1_auto.gives_numeric_breakdown",
+   "name": "gives_numeric_breakdown",
+   "dimension": "auto",
+   "question": "Does the post break down a total amount into component parts, showing how the parts sum to the total?",
+   "definition": "The post presents a total figure and then lists at least two component amounts that add up to that total.",
+   "yes_example": "Total cost: $1,000. Materials: $600. Labor: $300. Overhead: $100.",
+   "no_example": "The project cost $1,000, including materials and labor.",
+   "hypothesis": "I expect numeric breakdowns to increase engagement."
+  },
+  {
+   "id": "r1_auto.names_rejecting_organization",
+   "name": "names_rejecting_organization",
+   "dimension": "auto",
+   "question": "Does the post explicitly name a company or organization that rejected or failed the author?",
+   "definition": "The post describes a negative outcome experienced by the author and names the specific company or organization responsible.",
+   "yes_example": "Acme Inc. rejected me after three interviews.",
+   "no_example": "I was rejected after three interviews.",
+   "hypothesis": "I expect posts that name the rejecting organization to get more reactions."
+  },
+  {
+   "id": "r1_auto.asks_for_likes_or_shares",
+   "name": "asks_for_likes_or_shares",
+   "dimension": "auto",
+   "question": "Does the post explicitly ask readers to like, share, or repost the content?",
+   "definition": "Yes if the post contains a direct request for the reader to like, share, repost, or forward the post itself.",
+   "yes_example": "Please like and share this post with your network if you agree.",
+   "no_example": "I hope this helps you.",
+   "hypothesis": "Explicit engagement requests prompt more reactions."
+  },
+  {
+   "id": "r1_auto.mentions_animals",
+   "name": "mentions_animals",
+   "dimension": "auto",
+   "question": "Does the post mention a non-human animal, either literally or as a prominent image?",
+   "definition": "Yes if the post references animals, pets, or uses animal-related imagery such as dogs or cats as a notable element.",
+   "yes_example": "Meet our office puppy who makes every standup better.",
+   "no_example": "We shipped a new feature for analytics dashboards.",
+   "hypothesis": "Animal content triggers positive emotions and sharing."
+  },
+  {
+   "id": "r1_auto.discusses_mortality",
+   "name": "discusses_mortality",
+   "dimension": "auto",
+   "question": "Does the post explicitly discuss death, dying, or mortality as a central theme?",
+   "definition": "Yes if the post addresses the topic of death, human mortality, or the inevitability of dying.",
+   "yes_example": "Remembering that we are mortal can clarify what truly matters in work and life.",
+   "no_example": "Our new product launch exceeded all expectations.",
+   "hypothesis": "Mortality themes provoke deep reflection and resonance."
+  },
+  {
+   "id": "r1_auto.describes_company_conflict",
+   "name": "describes_company_conflict",
+   "dimension": "auto",
+   "question": "Does the post report or analyze a conflict, dispute, or competitive tension between two or more named companies?",
+   "definition": "Yes if the post describes a specific clash, lawsuit, suspension of partnership, or other antagonistic action involving identifiable organizations.",
+   "yes_example": "Acme Corp has cut off integration access for Beta Inc, citing competitive concerns.",
+   "no_example": "Both companies are seeing strong growth in the cloud market.",
+   "hypothesis": "Conflict narratives drive attention and discussion."
+  },
+  {
+   "id": "r1_auto.offers_free_resource",
+   "name": "offers_free_resource",
+   "dimension": "auto",
+   "question": "Does the post offer the reader something for free, such as a resource, tool, audit, trial, or download?",
+   "definition": "The post states that the reader can obtain a named item or service at no cost.",
+   "yes_example": "Get my free checklist for launching your first product.",
+   "no_example": "Our new paid course is now open for enrollment.",
+   "hypothesis": "Posts offering a free resource generate more reactions because readers respond to tangible no-cost value."
+  },
+  {
+   "id": "r1_auto.uses_negative_emotion_language",
+   "name": "uses_negative_emotion_language",
+   "dimension": "auto",
+   "question": "Does the post use strongly negative emotional language to describe a situation, practice, or trend?",
+   "definition": "Yes if the post includes at least one vivid negative emotion word or metaphor that conveys distress, exploitation, or outrage.",
+   "yes_example": "This exploitative practice is humiliating skilled professionals and harvesting their knowledge.",
+   "no_example": "The company announced a new policy update today.",
+   "hypothesis": "Strong negative emotion prompts strong reactions."
+  },
+  {
+   "id": "r1_auto.states_new_initiative_proposal",
+   "name": "states_new_initiative_proposal",
+   "dimension": "auto",
+   "question": "Does the post propose the creation of a new initiative, fund, program, or organization that does not currently exist?",
+   "definition": "Yes if the author advocates for establishing something new to address a problem or opportunity, beyond just recommending a practice.",
+   "yes_example": "We need a global fund to support early-stage climate tech startups.",
+   "no_example": "Adopting agile methods can improve team efficiency.",
+   "hypothesis": "Proposing concrete new ideas sparks discussion and support."
+  },
+  {
+   "id": "r1_auto.announces_personal_life_milestone_outside_work",
+   "name": "announces_personal_life_milestone_outside_work",
+   "dimension": "auto",
+   "question": "Does the post announce a personal life event outside work, such as a new child, marriage, anniversary, or relocation?",
+   "definition": "Yes when the author explicitly shares a non-work life event or milestone about themselves or their family.",
+   "yes_example": "We just brought home baby number three!",
+   "no_example": "Three tips for better LP introductions.",
+   "hypothesis": "Personal life milestone posts tend to get more reactions than purely professional content."
+  },
+  {
+   "id": "r1_auto.announces_career_change_or_open_to_new_roles",
+   "name": "announces_career_change_or_open_to_new_roles",
+   "dimension": "auto",
+   "question": "Does the post state that the author is leaving a previous role, starting a new role, or now available for work?",
+   "definition": "Yes when the author explicitly announces a job change, departure, or new availability for opportunities.",
+   "yes_example": "Yesterday was my last day at NetNut. Now open for fractional work.",
+   "no_example": "I want work that combines passion, impact, and income.",
+   "hypothesis": "Career change or availability announcements tend to get more reactions than general musings about work."
+  },
+  {
+   "id": "r1_auto.uses_vivid_sensory_imagery",
+   "name": "uses_vivid_sensory_imagery",
+   "dimension": "auto",
+   "question": "Does the post include at least one adjective describing a color, temperature, or weather condition used figuratively or for atmosphere?",
+   "definition": "Yes when the text uses sensory color, temperature, or weather words beyond literal description to create a mood.",
+   "yes_example": "The celadon skies and melting tarmac greeted us.",
+   "no_example": "The event is full and includes breakfast.",
+   "hypothesis": "Vivid sensory imagery tends to get more reactions than straightforward descriptions."
+  },
+  {
+   "id": "r1_auto.named_company_metric",
+   "name": "named_company_metric",
+   "dimension": "auto",
+   "question": "Does the post mention a specific named company and at least one quantified operational result, such as a percentage time or cost change?",
+   "definition": "Yes when the post gives a numeric business outcome for a named company or product.",
+   "yes_example": "Hyundai cut crash-safety review time by 90%.",
+   "no_example": "AI can help you build faster.",
+   "hypothesis": "Named-company quantified results lend credibility and shareability."
+  },
+  {
+   "id": "r1_auto.describes_grant_or_funding_opportunity",
+   "name": "describes_grant_or_funding_opportunity",
+   "dimension": "auto",
+   "question": "Does the post describe a grant, award, or non-job funding opportunity for organizations or individuals?",
+   "definition": "Yes when the main subject is a grant or award with an application process, not a paid job opening.",
+   "yes_example": "Apply for a $2,000 bee education grant by October 31.",
+   "no_example": "We are hiring an economic analyst in Accra.",
+   "hypothesis": "Grant opportunity posts tend to get more reactions than job openings from the same account."
+  },
+  {
+   "id": "r1_auto.calls_out_hiring_discrimination",
+   "name": "calls_out_hiring_discrimination",
+   "dimension": "auto",
+   "question": "Does the post describe a specific incident where a person was treated unfairly because of nationality, gender, age, or another protected characteristic?",
+   "definition": "Yes when the post recounts an employment decision explicitly based on nationality, gender, age, or another protected characteristic.",
+   "yes_example": "The manager said, 'We prefer people from certain countries.'",
+   "no_example": "Performance reviews can be misleading.",
+   "hypothesis": "Posts calling out specific discriminatory hiring practices tend to get more reactions than generic HR criticism."
+  },
+  {
+   "id": "r1_auto.previews_interview_with_specific_topic_list",
+   "name": "previews_interview_with_specific_topic_list",
+   "dimension": "auto",
+   "question": "Does the post preview a podcast or interview by listing at least three specific discussion topics or questions?",
+   "definition": "Yes when the post enumerates several concrete conversation points from an interview before releasing it.",
+   "yes_example": "We discussed: lessons from bankruptcy, relationship building, and why asking for help matters.",
+   "no_example": "Enjoyed the conversation; episode coming soon.",
+   "hypothesis": "Posts that preview an interview with a specific topic list tend to get more reactions than vague gratitude."
+  },
+  {
+   "id": "r1_auto.contains_standalone_aphorism",
+   "name": "contains_standalone_aphorism",
+   "dimension": "auto",
+   "question": "Does the post contain a standalone, pithy one-sentence statement of a general principle or truth that could be quoted independently?",
+   "definition": "Yes if there is a short, memorable sentence stating a universal rule or observation, separate from the main narrative.",
+   "yes_example": "Business is simple: do what you said you'd do.",
+   "no_example": "We are building an AI system that continuously advances work.",
+   "hypothesis": "Standalone aphorisms are highly shareable and quotable."
+  },
+  {
+   "id": "r1_auto.promises_future_how_to",
+   "name": "promises_future_how_to",
+   "dimension": "auto",
+   "question": "Does the post promise to share a step-by-step process or tutorial in a future post?",
+   "definition": "Yes if the author explicitly says they will later provide detailed instructions or a walkthrough of a method.",
+   "yes_example": "In my next post, I'll walk you through how I built it.",
+   "no_example": "Here is what I learned from my experience.",
+   "hypothesis": "Promising a future how-to creates anticipation and book readers for follow-up."
+  },
+  {
+   "id": "r1_auto.uses_nickname_for_public_figure",
+   "name": "uses_nickname_for_public_figure",
+   "dimension": "auto",
+   "question": "Does the post refer to a public figure by an informal nickname, first name only, or playful label rather than a formal title?",
+   "definition": "Yes if the post uses a casual or humorous name for a well-known person instead of their official or full name.",
+   "yes_example": "The Don is at it again with tariffs.",
+   "no_example": "President Trump announced new tariffs.",
+   "hypothesis": "Informal nicknames signal insider personality and humor."
+  },
+  {
+   "id": "r1_auto.presents_multiple_distinct_case_examples",
+   "name": "presents_multiple_distinct_case_examples",
+   "dimension": "auto",
+   "question": "Does the post present at least two separate, distinct case examples or user stories to illustrate its point?",
+   "definition": "Yes if the post includes two or more independent narratives or examples of different people or situations.",
+   "yes_example": "A veteran asks about benefits; a cancer patient uses AI to understand treatment.",
+   "no_example": "One patient used AI to understand her diagnosis.",
+   "hypothesis": "Multiple distinct case examples show broader relevance and richer content."
+  },
+  {
+   "id": "r1_auto.opens_with_named_entity",
+   "name": "opens_with_named_entity",
+   "dimension": "auto",
+   "question": "Does the first sentence of the post mention a specific named company, product, or person as its main subject?",
+   "definition": "Answer yes when the opening sentence identifies a particular brand, organization, product, or individual.",
+   "yes_example": "Stripe just announced a new AI gateway for startups.",
+   "no_example": "The best advice I ever received came from a mentor.",
+   "hypothesis": "Opening with a concrete named entity increases immediate relevance and curiosity."
+  },
+  {
+   "id": "r1_auto.framed_as_takeaways_from_source",
+   "name": "framed_as_takeaways_from_source",
+   "dimension": "auto",
+   "question": "Does the post explicitly frame its content as takeaways or lessons from a specific source, such as an interview, event, or named person?",
+   "definition": "Answer yes when the post states that it will share insights, lessons, or takeaways derived from a named person, event, or source.",
+   "yes_example": "Five lessons I learned from interviewing a successful founder.",
+   "no_example": "Here are some thoughts about startup growth.",
+   "hypothesis": "Posts that promise curated takeaways from a specific source attract readers seeking distilled wisdom."
+  },
+  {
+   "id": "r1_auto.tags_multiple_individuals",
+   "name": "tags_multiple_individuals",
+   "dimension": "auto",
+   "question": "Does the post mention or tag at least two specific individuals by name, either in the body text or in a list of tags?",
+   "definition": "Answer yes when the post names two or more distinct persons, excluding hashtags.",
+   "yes_example": "Thanks to Alice Johnson and Bob Lee for collaborating on this project.",
+   "no_example": "Had a useful meeting with a potential partner yesterday.",
+   "hypothesis": "Mentioning multiple specific people can notify them and expand the post's reach."
+  },
+  {
+   "id": "r1_auto.mentions_limited_quantity",
+   "name": "mentions_limited_quantity",
+   "dimension": "auto",
+   "question": "Does the post specify a numerical limit on the number of people who can take advantage of an offer or opportunity?",
+   "definition": "Answer yes when the post states a cap on participants, spots, or items, such as 'only 30 founders' or '5 slots'.",
+   "yes_example": "We have only three slots left for the workshop.",
+   "no_example": "Register for the workshop at the link below.",
+   "hypothesis": "Explicit numeric scarcity increases perceived value and urgency."
+  },
+  {
+   "id": "r1_auto.casual_opening_greeting",
+   "name": "casual_opening_greeting",
+   "dimension": "auto",
+   "question": "Does the post open with a casual greeting, apology, or informal conversational opener directed at the reader?",
+   "definition": "Yes when the first sentence is a friendly greeting, apology for absence, or informal remark to the reader.",
+   "yes_example": "Hey everyone, sorry I've been quiet this week.",
+   "no_example": "We are hiring a data engineer.",
+   "hypothesis": "Casual openers create a personal, approachable tone and may increase reactions."
+  },
+  {
+   "id": "r1_auto.resource_list_opportunities",
+   "name": "resource_list_opportunities",
+   "dimension": "auto",
+   "question": "Does the post list multiple external opportunities such as grants, funding programs, scholarships, or similar that the reader can apply to?",
+   "definition": "Yes when the post enumerates two or more named opportunities with eligibility or application details for the reader.",
+   "yes_example": "Here are three grants: Startup India Seed Fund, NIDHI PRAYAS, and BIRAC BIG.",
+   "no_example": "This year saw a shift in D2C funding patterns.",
+   "hypothesis": "Resource list posts outperform general analysis because they offer direct utility."
+  }
+ ],
+ "dropped_by_hand": {
+  "r1_auto.exclamation_mark": "already a free text check",
+  "r1_auto.asks_for_job_help": "duplicate of r1_seed.asks_for_personal_help"
+ }
+}

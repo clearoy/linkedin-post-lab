@@ -1,10 +1,11 @@
-"""LinkedIn post dashboard: evaluate a draft with Jev, and a short pipeline overview.
+"""LinkedIn post dashboard: evaluate a draft with the research scorecard, what works, the evidence, and the pipeline.
 
 Run:
     uv run streamlit run app/dashboard.py
 
 Needs OPENROUTER_API_KEY in .env and the outputs of the pipeline scripts
-(data/processed/models/model_bundle.json in particular).
+(data/processed/research/scorecard.json from research/scorecard.py, and
+data/processed/models/model_bundle.json for the Pipeline tab).
 """
 
 import json
@@ -14,19 +15,22 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))  # see README "Imports on this Mac"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import altair as alt  # noqa: E402
+import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
-from linkedin_analysis import judge  # noqa: E402
+from insights import evidence_tab, what_works_tab  # noqa: E402
+from linkedin_analysis import judge, scorecard  # noqa: E402
 from linkedin_analysis.llm import DecisionsClient, LLMSettings  # noqa: E402
 from linkedin_analysis.paths import PROCESSED  # noqa: E402
 from linkedin_analysis.predict import (  # noqa: E402
     build_row,
     load_bundle,
-    multiplier,
     linear_features,
+    multiplier,
     predict_linear,
 )
 
@@ -93,129 +97,184 @@ def jev() -> DecisionsClient:
     return DecisionsClient(LLMSettings.from_env("openrouter"), max_cost_usd=MAX_COST_PER_SESSION, max_connections=8)
 
 
-def describe(column: str, questions: dict[str, str]) -> str:
-    """Readable name for a model column."""
-    if column in questions:
-        return questions[column]
-    names = {"ctl.log_words": "Post length (log words)", "ctl.weekend": "Posted on a weekend",
-             "ctl.hour_night": "Posted at night (PT)", "ctl.hour_afternoon": "Posted in the afternoon (PT)",
-             "ctl.hour_evening": "Posted in the evening (PT)"}
-    if column.startswith("ctl.media_"):
-        return f"Media: {column.removeprefix('ctl.media_')}"
-    return names.get(column, column)
-
-
 def fmt_x(lift: float) -> str:
     m = multiplier(lift)
     return f"{m:.2f}×"
 
 
-# Tab 1: evaluate a post
+# Tab 1: evaluate a post (research scorecard)
 
 
-def variant_label(variant: str) -> str:
-    b = bundle(variant)
-    acc = b["metrics"]["linear"]["test"]["pairwise_accuracy"]
-    kind = "Full" if variant == "full" else "Compact"
-    return f"{kind}: {len(linear_features(b))} questions · test {acc:.1%}"
+@st.cache_resource
+def _card(mtime: float) -> dict:
+    return scorecard.load()
+
+
+def card() -> dict:
+    """The research scorecard (research/scorecard.py); reloaded when the file is rewritten."""
+    return _card(scorecard.BUNDLE.stat().st_mtime)
+
+
+def ask_jev(texts: list[str], features: list[dict]) -> list[dict[str, float]] | None:
+    client = jev()
+    posts = [{"urn": f"draft{i}", "media": "text", "body": t} for i, t in enumerate(texts)]  # Jev sees only the text
+    with st.spinner(f"Asking Jev {len(features)} questions per draft…"):
+        try:
+            rows, skipped = judge.judge(client.decide, posts, features, workers=8)
+        except Exception as e:  # network or API errors
+            st.error(f"Jev call failed: {e}")
+            return None
+    if skipped:
+        st.error(f"Session spending cap (${MAX_COST_PER_SESSION:.2f}) reached. Restart the app to reset it.")
+        return None
+    st.session_state["spent"] = client.usage.cost_usd
+    return [{r["feature_id"]: r["p_yes"] for r in rows if r["urn"] == p["urn"]} for p in posts]
 
 
 def evaluate_tab() -> None:
     st.subheader("Evaluate a draft post")
-    variants = ["full"] + (["compact"] if has_variant("compact") else [])
-    variant = st.radio("Model", variants, format_func=variant_label, horizontal=True,
-                       help="Full: each theme is the average of all its questions. Compact: each theme is measured by "
-                            "its 2 most representative questions only. Cheaper and easier to read, about 1 point "
-                            "less accurate.")
-    b = bundle(variant)
-    questions = {f["id"]: f["question"] for f in b["features"]}
-    used = {t: v for t, v in b.get("themes", {}).items() if t in b["linear"]["coef"]}  # themes the model uses
-    questions.update({t: theme_title(t, b) for t in used})
-    ask = linear_features(b)  # only the questions those themes need
+    b = card()
+    feats = scorecard.jev_features(b)
     m = b["metrics"]
-
     st.caption(
-        f"The linear model uses {len(b['linear']['coef'])} content themes. Jev answers the {len(ask)} yes/no "
-        f"questions behind them (about ${len(ask) * judge.USD_PER_QUESTION:.4f} per post), and the model turns "
-        "those answers into an expected result **relative to the author's usual post**, for any account size."
-    )
-    left, right = st.columns([4, 1])
-    text = left.text_area("Post text", height=260, placeholder="Paste a LinkedIn post draft…")
-    right.caption("Text only: attached media is not used anywhere.")
-    go = right.button("Evaluate with Jev", type="primary", disabled=not text.strip(), use_container_width=True)
-
-    if go:
-        client = jev()
-        post = {"urn": "draft", "media": "text", "body": text}  # Jev sees only the text
-        with st.spinner(f"Asking Jev {len(ask)} questions…"):
-            try:
-                rows, skipped = judge.judge(client.decide, [post], ask, workers=8)
-            except Exception as e:  # network or API errors
-                st.error(f"Jev call failed: {e}")
-                return
-        if skipped:
-            st.error(f"Session spending cap (${MAX_COST_PER_SESSION:.2f}) reached. Restart the app to reset it.")
+        f"Jev answers {len(feats)} yes/no questions about the text (about ${len(feats) * judge.USD_PER_QUESTION:.4f} per draft) and the "
+        f"scorecard adds up the {m['items_nonzero']} properties that matter, each tested on {m['train_authors']} authors. You get the expected "
+        "reactions **relative to the author's usual post**, the drivers behind it, and the edits that should raise it. Text only: "
+        "attached media is not used anywhere.")
+    compare = st.toggle("Compare two drafts", help="Score two versions of a post and see which one the scorecard expects to do better.")
+    n = 2 if compare else 1
+    cols = st.columns(n)
+    texts = [cols[i].text_area(f"Draft {'AB'[i]}" if compare else "Post text", height=240, key=f"draft{i}",
+                               placeholder="Paste a LinkedIn post draft…") for i in range(n)]
+    if st.button("Evaluate with Jev", type="primary", disabled=not all(t.strip() for t in texts)):
+        answers = ask_jev(texts, feats)
+        if answers is None:
             return
-        st.session_state["result"] = {"rows": rows, "text": text, "spent": client.usage.cost_usd}
+        st.session_state["eval"] = {"texts": texts, "answers": answers}
 
-    result = st.session_state.get("result")
-    if not result:
+    ev = st.session_state.get("eval")
+    if not ev or len(ev["texts"]) != n:
         return
-    p_yes = {r["feature_id"]: r["p_yes"] for r in result["rows"]}
-    missing = [f for f in ask if f["id"] not in p_yes]
-    if missing:  # evaluated with the compact model, then switched to full
-        st.info(f"This post was evaluated with fewer questions. Click **Evaluate with Jev** to ask the "
-                f"{len(missing)} missing ones for this model.")
-        return
-    p_yes = {f["id"]: p_yes[f["id"]] for f in ask}  # the full model's answers also cover the compact one
-    row = build_row(b, p_yes, "text", result["text"])
-    lin_pred, contrib = predict_linear(b, row)
-
+    if ev["texts"] != texts:
+        st.warning("The text changed since the last evaluation. Click **Evaluate with Jev** to score the new version.")
+    reports = []
+    for text, p_yes in zip(ev["texts"], ev["answers"]):
+        values = scorecard.post_values(b, p_yes, text)
+        result = scorecard.score(b, values)
+        reports.append({"text": text, "p_yes": p_yes, "values": values, "result": result,
+                        "suggest": scorecard.suggestions(b, result), "type": scorecard.post_type(b, values)})
+    st.caption(f"Jev spend this session: ${st.session_state.get('spent', 0):.4f} (repeat evaluations of the same text are free).")
     st.divider()
-    c1, c2 = st.columns(2)
-    c1.metric("Expected reactions vs. author's usual", fmt_x(lin_pred),
-              help="Linear model on content themes. 1.00× = a typical post for this author.")
-    c2.metric("Model test accuracy", f"{m['linear']['test']['pairwise_accuracy']:.0%}",
-              help="For two posts by the same held-out author, how often the model ranks the better one higher. "
-                   "50% = chance.")
-    st.caption(f"Jev answered {len(p_yes)} questions. Spend this session: ${result['spent']:.4f}.")
 
-    st.markdown("**What moves the prediction**")
-    top = [c for c in contrib if abs(c["contribution"]) > 1e-4]
-    if top:
-        df = pd.DataFrame({
-            "theme": [describe(c["column"], questions) for c in top],
-            "effect": [c["contribution"] for c in top],
-            "theme score": [c["value"] for c in top],
-            "average post": [b["column_means"][c["column"]] for c in top],
-            "weight": [c["coef"] for c in top],
-        })
-        chart = alt.Chart(df).mark_bar().encode(
-            x=alt.X("effect:Q", title="Push on log-lift vs. average post"),
-            y=alt.Y("theme:N", sort=None, title=None, axis=alt.Axis(labelLimit=520)),
-            color=alt.condition(alt.datum.effect > 0, alt.value("#2e7d32"), alt.value("#c62828")),
-            tooltip=["theme", alt.Tooltip("effect:Q", format="+.3f"),
-                     alt.Tooltip("theme score:Q", format=".2f", title="this post's score"),
-                     alt.Tooltip("average post:Q", format=".2f", title="average post's score"),
-                     alt.Tooltip("weight:Q", format="+.3f")],
-        ).properties(height=alt.Step(30))
-        st.altair_chart(chart, use_container_width=True)
-        st.caption("Each bar compares this post with an average post: effect = weight × (this post's score − "
-                   "average post's score). A red bar on a helpful theme means the post is just below average on it, "
-                   "a missed boost, not a penalty. Theme scores themselves are always between 0 and 1.")
+    if compare:
+        a, c = reports
+        gap = a["result"]["score"] - c["result"]["score"]
+        conf = scorecard.pair_confidence(b, gap)
+        better, worse = ("A", "B") if gap >= 0 else ("B", "A")
+        k = st.columns(3)
+        k[0].metric("Draft A", f"{a['result']['multiplier']:.2f}×", a["result"]["band"]["name"], delta_color="off")
+        k[1].metric("Draft B", f"{c['result']['multiplier']:.2f}×", c["result"]["band"]["name"], delta_color="off")
+        k[2].metric(f"Draft {better} vs Draft {worse}", f"{math.exp(abs(gap)):.2f}×",
+                    help="For the same author, the expected ratio of reactions: exp(score difference).")
+        st.markdown(f"For two posts by the same held-out author with a gap this size, the higher-scoring one got more reactions "
+                    f"**{conf['accuracy']:.0%}** of the time ({conf['share']:.1%} of pairs had a gap this size).")
+        if abs(gap) > b["metrics"]["max_gap_seen"]:
+            st.caption(f"This gap is larger than any seen between two posts by the same held-out author "
+                       f"(up to {math.exp(b['metrics']['max_gap_seen']):.1f}×), so read the ratio as 'much better', not as an exact number.")
+        diff = pd.DataFrame([{"driver": da["name"], "change": math.exp(da["contribution"] - dc["contribution"])}
+                             for da, dc in zip(a["result"]["drivers"], c["result"]["drivers"])])
+        diff = diff[(diff["change"] - 1).abs() > 0.005].sort_values("change", key=lambda s: -(np.log(s).abs()))
+        if len(diff):
+            st.markdown("**Where Draft A differs from Draft B**")
+            st.altair_chart(driver_chart(diff, "change", "Draft A vs Draft B (×)"), use_container_width=True)
+        for name, tab in zip("AB", st.tabs(["Draft A", "Draft B"])):
+            with tab:
+                report(b, reports["AB".index(name)])
     else:
-        st.write("No theme moves this prediction away from average.")
+        report(b, reports[0])
 
-    with st.expander(f"How this post scored on the {len(used)} themes"):
-        for t, v in used.items():
-            st.markdown(f"**{theme_title(t, b)}** — this post: **{row[t]:.0%}** of the checklist "
-                        f"(typical post {v['q25']:.0%}–{v['q75']:.0%})")
-            st.caption(theme_description(t, b))
-            st.markdown("\n".join(f"- {'✅' if p_yes.get(f, 0) >= 0.5 else '▫️'} {q} ({p_yes.get(f, float('nan')):.2f})"
-                                    for f, q in zip(v["members"], v["member_questions"])))
 
-    with st.expander(f"All {len(p_yes)} Jev answers"):
-        table = pd.DataFrame([{"question": questions[k], "P(yes)": v} for k, v in p_yes.items()]
+def driver_chart(df: pd.DataFrame, col: str, title: str) -> alt.Chart:
+    lo, hi = min(df[col].min(), 0.95), max(df[col].max(), 1.05)
+    return alt.Chart(df).mark_bar().encode(
+        x=alt.X(f"{col}:Q", title=title, scale=alt.Scale(type="log", nice=False, domain=[lo / 1.02, hi * 1.02]),
+                axis=alt.Axis(values=[0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0], format=".2~f")),
+        x2=alt.datum(1.0),
+        y=alt.Y("driver:N", sort=None, title=None, axis=alt.Axis(labelLimit=320)),
+        color=alt.condition(f"datum['{col}'] > 1", alt.value("#2e7d32"), alt.value("#c62828")),
+        tooltip=["driver", alt.Tooltip(f"{col}:Q", format=".2f")] + (["has"] if "has" in df else []),
+    ).properties(height=alt.Step(26))
+
+
+def report(b: dict, r: dict) -> None:
+    res, sug, ptype = r["result"], r["suggest"], r["type"]
+    band = res["band"]
+    k = st.columns(3)
+    k[0].metric("Expected reactions vs the author's usual post", f"{res['multiplier']:.2f}×",
+                help="Calibrated on held-out authors for an author you know nothing else about. 1.00× = a typical post for that author.")
+    k[1].metric("Score band", band["name"], help="Bands cut at the 10th, 30th, 70th and 90th percentile of train posts.")
+    k[2].metric("Kind of post", ptype["name"], help=ptype["description"])
+    st.markdown(f"Held-out posts in the **{band['name'].lower()}** band got **{band['actual']:.2f}×** their author's usual reactions on "
+                f"average, beat it **{band['above_usual']:.0%}** of the time, got at least double it **{band['hit_rate']:.0%}** of the time "
+                f"and half or less **{band['flop_rate']:.0%}** of the time.")
+
+    st.markdown("**What moves this post's score** (vs an average post)")
+    drv = pd.DataFrame([{"driver": d["name"], "effect": math.exp(d["contribution"]),
+                         "has": "; ".join(i["label"] for i in d["has"])[:300]} for d in res["drivers"]])
+    drv = drv[(drv["effect"] - 1).abs() > 0.005].sort_values("effect", key=lambda s: -(np.log(s).abs()))
+    if len(drv):
+        st.altair_chart(driver_chart(drv, "effect", "Effect on expected reactions (×)"), use_container_width=True)
+        st.caption("A red bar on a helpful driver means the post has less of it than an average post: a missed boost, not a penalty.")
+
+    st.markdown("**Edits that should help**")
+    proven = {lv["id"]: lv for lv in ptype.get("levers", [])}
+    if sug["edits"]:
+        t = pd.DataFrame([{
+            "do": ("Add: " if s["action"] == "add" else "Remove: ") + s["label"],
+            "expected gain": s["gain_multiplier"],
+            "evidence (alone, all authors)": s["single"]["mult"] if s["single"] else None,
+            "held-out authors": s["single"]["test_mult"] if s["single"] else None,
+            "within this kind of post": "✓ " + f"{proven[s['id']]['mult']:.2f}×" if s["id"] in proven else "",
+        } for s in sug["edits"][:10]])
+        st.dataframe(t, hide_index=True, use_container_width=True, column_config={
+            "expected gain": st.column_config.NumberColumn(format="%.2f×"),
+            "evidence (alone, all authors)": st.column_config.NumberColumn(format="%.2f×"),
+            "held-out authors": st.column_config.NumberColumn(format="%.2f×")})
+        st.caption("Only properties that were confirmed on held-out authors on their own and that a writer can choose. Expected gain is the "
+                   "scorecard's weight: for the same author, about that many times the reactions, if the association holds for your post. "
+                   "Gains overlap, so two related edits add less than their product. ✓ = also significant within this kind of post. "
+                   "Use what fits the post, then evaluate again.")
+    else:
+        st.write("No confirmed edit would add much. The post already has what the scorecard rewards.")
+    if sug["if_true"]:
+        st.markdown("**If it's true, say it**: real occasions that go with more reactions")
+        st.markdown("\n".join(f"- {s['label']} (about {s['gain_multiplier']:.2f}×)" for s in sug["if_true"][:4]))
+
+    levers = [lv for lv in ptype.get("levers", []) if lv["mult"] > 1][:6]
+    if levers:
+        with st.expander(f"What works best in '{ptype['name']}' posts"):
+            st.caption(f"{ptype['description']} This kind of post gets {ptype['reactions']:.2f}× the author's usual reactions on average. "
+                       "Properties significant within this kind of post and in the same direction on held-out authors:")
+            st.markdown("\n".join(f"- {lv['label']}: **{lv['mult']:.2f}×** (held-out {lv['test_mult']:.2f}×)" for lv in levers))
+
+    with st.expander("What the post already does"):
+        for d in res["drivers"]:
+            if d["has"]:
+                st.markdown(f"**{d['name']}**: " + "; ".join(f"{i['label']} ({i['value']:.2f})" for i in d["has"]))
+
+    if (PROCESSED / "models" / "model_bundle.json").exists():
+        with st.expander("Previous dashboard model (theme model), from the same answers"):
+            tb = bundle()
+            row = build_row(tb, r["p_yes"], "text", r["text"])
+            pred, _ = predict_linear(tb, row)
+            st.metric("Theme model: expected reactions vs the author's usual", fmt_x(pred))
+            st.caption("The 7-theme linear model from the Pipeline tab. It ranks posts about as well as the scorecard "
+                       "(0.613 vs 0.616 on held-out authors) but gives no edit-level advice.")
+
+    with st.expander(f"All {len(r['p_yes'])} Jev answers"):
+        labels = {i["id"]: i["label"] for i in b["items"]}
+        q = {f["id"]: f["question"] for f in b["features"]}
+        table = pd.DataFrame([{"question": labels.get(k) or q.get(k, k), "P(yes)": v} for k, v in r["p_yes"].items()]
                              ).sort_values("P(yes)", ascending=False)
         st.dataframe(table, hide_index=True, use_container_width=True,
                      column_config={"P(yes)": st.column_config.ProgressColumn(min_value=0, max_value=1, format="%.2f")})
@@ -509,11 +568,16 @@ def themes_section() -> None:
                      hide_index=True, use_container_width=True)
 
 
-tab1, tab2 = st.tabs(["Evaluate a post", "Pipeline"])
+tab1, tab2, tab3, tab4 = st.tabs(["Evaluate a post", "What works", "Evidence", "Pipeline"])
 with tab1:
-    if (PROCESSED / "models" / "model_bundle.json").exists():
+    if scorecard.BUNDLE.exists():
         evaluate_tab()
     else:
-        st.info("Train the models first: scripts/train_models.py")
+        st.info("Build the scorecard first: uv run python research/scorecard.py")
 with tab2:
+    what_works_tab()
+with tab3:
+    evidence_tab()
+with tab4:
+    st.caption("The original pipeline and the 7-theme model that the first version of this dashboard used.")
     pipeline_tab()

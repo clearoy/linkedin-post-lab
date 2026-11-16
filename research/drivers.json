@@ -1,0 +1,224 @@
+{
+ "_about": "Hand-made grouping of every property that passed discovery on TRAIN authors (BH q < 0.05) into named drivers. Grouping is by meaning only; whether a property replicated on test authors was not used, so the scorecard's test score stays honest. kind: write = a writing choice the author can make in this post; occasion = only if it is true (something real has to have happened); descr = describes the post, not advice.",
+ "drivers": {
+  "people": {
+   "name": "Real people",
+   "direction": "+",
+   "summary": "Name, thank and credit the actual people involved.",
+   "advice": "Say who was involved and what they did. Replace \"thanks to the team\" with names. If someone helped you get here, credit them.",
+   "members": [
+    ["r2_seed.credits_others_for_own_success", "Credit specific people for helping you reach something", "write"],
+    ["tone_emotion.thanks_specific_person_or_group", "Thank a specific person or group", "write"],
+    ["audience_relationship.expresses_gratitude", "Say thank you to someone", "write"],
+    ["tone_emotion.expresses_gratitude_sympathy_well_wishes", "Express thanks, sympathy or good wishes", "write"],
+    ["r1_seed.names_three_plus_people", "Name three or more people", "write"],
+    ["r1_auto.tags_multiple_individuals", "Name at least two people", "write"],
+    ["specificity_evidence.mentions_named_person", "Name at least one person", "write"],
+    ["audience_relationship.publicly_acknowledges_person_or_team", "Give a shout-out to a person or team", "write"],
+    ["specificity_evidence.mentions_collaboration", "Say who you worked with", "write"],
+    ["narrative.tells_story_about_individual", "Tell one person's story", "write"],
+    ["r2_seed.learned_from_a_person", "Say what you learned from a specific person", "write"],
+    ["narrative.tells_client_or_founder_story", "Tell a client's or founder's story", "write"],
+    ["r1_seed.celebrates_someone_else", "Celebrate someone else's achievement", "write"],
+    ["tone_emotion.expresses_solidarity_with_group", "Show support for a specific group of people", "write"]
+   ]
+  },
+  "moments": {
+   "name": "Your own news and real moments",
+   "direction": "+",
+   "summary": "Something that actually happened to you: a milestone, an event, a result.",
+   "advice": "When you have news, post it. Frame other posts around what actually happened: where you were, what you finished, what comes next.",
+   "members": [
+    ["r1_seed.own_career_milestone", "Announce a milestone in your own career", "occasion"],
+    ["r2_seed.describes_turning_point", "Describe a turning point in your career or life", "occasion"],
+    ["promotion_intent.announces_achievement_or_recognition", "Announce an achievement or recognition", "occasion"],
+    ["narrative.describes_attended_event", "Describe an event you took part in", "occasion"],
+    ["promotion_intent.announces_author_participation", "Announce that you are taking part in something", "occasion"],
+    ["specificity_evidence.references_specific_event", "Name the specific event", "occasion"],
+    ["narrative.describes_past_event_completion", "Report on something that just finished", "occasion"],
+    ["r2_seed.live_update_today", "Write about something happening today", "occasion"],
+    ["tone_emotion.expresses_pride", "Say you are proud of something", "write"],
+    ["r2_seed.looks_forward_with_excitement", "Say what you are excited about next", "write"],
+    ["r1_seed.mentions_duration_of_journey", "Say how long you have been at it", "write"],
+    ["r1_seed.reports_own_numeric_result", "Report a number you or your team achieved", "write"],
+    ["r1_seed.behind_the_scenes", "Show how your work happens behind the scenes", "write"]
+   ]
+  },
+  "voice": {
+   "name": "Personal voice",
+   "direction": "+",
+   "summary": "Write as a person: your experience, your feelings, your mistakes.",
+   "advice": "Anchor the post in something you lived through and say how it felt. A doubt, a mistake or a joke at your own expense works better than a polished brand voice.",
+   "members": [
+    ["narrative.includes_personal_anecdote", "Include a specific experience of your own", "write"],
+    ["r1_seed.personal_life_outside_work", "Mention your life outside work", "write"],
+    ["r1_seed.admits_doubt_or_fear", "Admit a doubt or fear", "write"],
+    ["tone_emotion.author_expresses_emotion", "Say how you felt", "write"],
+    ["r2_seed.self_deprecating_humor", "Make a joke at your own expense", "write"],
+    ["r1_seed.admits_own_mistake", "Admit a mistake you made", "write"],
+    ["narrative.shares_personal_lesson", "Share a lesson you learned first-hand", "write"],
+    ["narrative.narrates_story", "Tell it as a story (a sequence of events)", "write"],
+    ["voice_perspective.states_personal_background", "State your own background or experience", "write"],
+    ["voice_perspective.uses_first_person_singular_pronouns", "Write in the first person (I, my)", "write"],
+    ["voice_perspective.expresses_first_person_opinion", "State your opinion as your own (\"I think\")", "write"],
+    ["voice_perspective.uses_first_person_role_perspective", "Speak from your own role (\"as a founder\")", "write"],
+    ["voice_perspective.uses_first_person_plural", "Use \"we\" and \"our\"", "write"],
+    ["tone_emotion.uses_humor_or_playful_tone", "Use humour", "write"],
+    ["r1_auto.uses_vivid_sensory_imagery", "Use a vivid image (colour, weather, temperature)", "write"]
+   ]
+  },
+  "concrete": {
+   "name": "Concrete details",
+   "direction": "+",
+   "summary": "Places, names, numbers and examples instead of general statements.",
+   "advice": "Swap general statements for specifics: the city, the company, the number, the date, what happened first.",
+   "members": [
+    ["specificity_evidence.mentions_geographic_location", "Mention a specific place", "write"],
+    ["r1_seed.opens_in_a_specific_moment", "Open in a specific moment (time, place, action)", "write"],
+    ["r1_auto.opens_with_named_entity", "Open with a named person, company or product", "write"],
+    ["specificity_evidence.mentions_named_company_or_org", "Name a company or organisation", "write"],
+    ["specificity_evidence.includes_specific_example", "Give a concrete example", "write"],
+    ["specificity_evidence.includes_numeric_statistic", "Include a specific number", "write"],
+    ["text.first_line_has_number", "Put a number in the first line", "write"],
+    ["specificity_evidence.includes_direct_quotation", "Quote someone directly", "write"],
+    ["narrative.describes_change_over_time", "Compare then and now", "write"],
+    ["specificity_evidence.mentions_specific_date_or_deadline", "Mention a specific date", "write"],
+    ["promotion_intent.mentions_own_project_or_creation", "Mention your own project or work", "write"],
+    ["specificity_evidence.mentions_job_title_or_role", "Mention a specific job title", "descr"],
+    ["topic.mentions_specific_professional_role", "Mention a specific professional role", "descr"],
+    ["specificity_evidence.mentions_named_product_or_service", "Name a product or tool", "descr"],
+    ["r1_auto.mentions_animals", "Mention an animal", "descr"]
+   ]
+  },
+  "company_news": {
+   "name": "Company and market news",
+   "direction": "+",
+   "summary": "Funding, launches, hiring and other recent developments.",
+   "advice": "Report the development plainly: who, what, how much.",
+   "members": [
+    ["specificity_evidence.mentions_funding_or_investment", "Mention a funding round", "descr"],
+    ["topic.discusses_funding_or_investment", "Discuss funding or investment", "descr"],
+    ["specificity_evidence.mentions_monetary_amount", "Mention a specific amount of money", "write"],
+    ["r1_auto.named_company_metric", "Give a named company's measured result", "write"],
+    ["topic.reports_recent_development_or_company_update", "Report a recent company update or release", "descr"],
+    ["promotion_intent.announces_upcoming_launch", "Announce something about to launch", "occasion"],
+    ["media_links.summarizes_multiple_news_items", "Round up several news items", "descr"],
+    ["topic.discusses_hiring_or_job_market", "Discuss hiring or the job market", "descr"],
+    ["r2_auto.highlights_free_help_or_charity", "Highlight someone giving free help or charity", "descr"]
+   ]
+  },
+  "rhetoric": {
+   "name": "Contrast and analogy",
+   "direction": "+",
+   "summary": "Explains by comparing two things or using a metaphor.",
+   "advice": "A contrast or an analogy helps a little. It does not make up for missing people or experience.",
+   "members": [
+    ["argument_claims.contrasts_two_or_more_things", "Contrast two things", "write"],
+    ["language_style.uses_analogy_or_metaphor", "Use an analogy or metaphor", "write"],
+    ["language_style.uses_not_x_but_y_contrast", "Use a \"not X, but Y\" contrast", "write"]
+   ]
+  },
+  "marks": {
+   "name": "Hashtags, emoji and emphasis",
+   "direction": "+",
+   "summary": "Surface marks: hashtags, emoji, exclamation marks, capitals.",
+   "advice": "These go with more reactions on train authors, but hashtags did not hold up on held-out authors. Do not rely on them.",
+   "members": [
+    ["structure_format.contains_hashtag", "Use a hashtag", "write"],
+    ["text.has_hashtag", "Use a hashtag", "write"],
+    ["structure_format.has_three_or_more_hashtags", "Use three or more hashtags", "write"],
+    ["text.three_plus_hashtags", "Use three or more hashtags", "write"],
+    ["structure_format.contains_emoji", "Use an emoji", "write"],
+    ["text.has_emoji", "Use an emoji", "write"],
+    ["structure_format.contains_emoji_in_body", "Use an emoji in the body", "write"],
+    ["text.three_plus_emoji", "Use three or more emoji", "write"],
+    ["text.has_exclamation", "Use an exclamation mark", "write"],
+    ["structure_format.contains_all_caps", "Write a word in capitals", "write"]
+   ]
+  },
+  "lists": {
+   "name": "Lists",
+   "direction": "+",
+   "summary": "Items set out as a list.",
+   "advice": "A list is fine and slightly helps reposts. It is not a substitute for content.",
+   "members": [
+    ["structure_format.includes_list_of_categories", "List categories, types or stages", "write"],
+    ["structure_format.uses_list_with_three_plus_items", "Include a list of three or more items", "write"],
+    ["structure_format.uses_bulleted_list", "Use a bulleted list", "write"],
+    ["structure_format.uses_list_formatting", "Format items as a list", "write"],
+    ["structure_format.uses_emoji_as_list_markers", "Use emoji as list markers", "write"]
+   ]
+  },
+  "lecture": {
+   "name": "Lecture mode",
+   "direction": "-",
+   "summary": "Advice, frameworks and made-up examples with nothing of your own behind them.",
+   "advice": "If you give advice, tie it to something that happened to you or to a named person. Replace \"imagine a company that...\" with a real case.",
+   "members": [
+    ["r1_seed.generic_advice_without_experience", "Advice not tied to anything you experienced", "write"],
+    ["call_to_action.provides_actionable_advice", "Tips or recommended actions for the reader", "write"],
+    ["argument_claims.offers_professional_advice", "Advice for professional practice", "write"],
+    ["argument_claims.gives_step_by_step_process_or_framework", "A step-by-step process or framework", "write"],
+    ["call_to_action.outlines_step_by_step_process", "A step-by-step roadmap for the reader", "write"],
+    ["argument_claims.presents_problem_then_solution", "Problem-then-solution structure", "write"],
+    ["argument_claims.advocates_specific_approach", "Argues for a specific method or technology", "write"],
+    ["narrative.includes_hypothetical_example", "A made-up example not tied to a real case", "write"],
+    ["language_style.uses_hypothetical_example", "A hypothetical or imagined scenario", "write"]
+   ]
+  },
+  "problems": {
+   "name": "Problem and risk framing",
+   "direction": "-",
+   "summary": "The post is built around a problem, a gap or a risk.",
+   "advice": "Problem posts draw comments more than reactions. If reactions matter, lead with what you or someone did about it.",
+   "members": [
+    ["argument_claims.identifies_problem_or_gap", "Points out a problem, gap or risk", "write"],
+    ["topic.identifies_group_problem", "Describes a difficulty a group of people has", "write"],
+    ["argument_claims.describes_technology_limitation_or_risk", "Describes a limitation or risk of a technology", "write"]
+   ]
+  },
+  "hooks": {
+   "name": "Hook-style openers",
+   "direction": "-",
+   "summary": "Opens with a bold claim, a contradiction or a question.",
+   "advice": "Open with what happened or who it is about, not with a claim, a \"everyone is wrong\" line or a question.",
+   "members": [
+    ["r1_seed.opens_with_bold_claim", "Opens with a bold one-line claim", "write"],
+    ["r2_auto.opens_with_contradiction", "Opens with a contradiction (\"Everyone says X. They're wrong.\")", "write"],
+    ["text.first_line_is_question", "Opens with a question", "write"]
+   ]
+  },
+  "elsewhere": {
+   "name": "Sends readers elsewhere",
+   "direction": "-",
+   "summary": "Links out, or summarises someone else's article.",
+   "advice": "Say the point in the post itself. If a link is needed, make the post worth reading without clicking it.",
+   "members": [
+    ["media_links.contains_external_link", "Includes a link", "write"],
+    ["text.has_link", "Includes a link", "write"],
+    ["media_links.directs_to_external_resource", "Points the reader to an external resource", "write"],
+    ["media_links.summarizes_external_source", "Summarises an article or report", "write"]
+   ]
+  },
+  "layout": {
+   "name": "No paragraph breaks",
+   "direction": "-",
+   "summary": "The post is one block of text.",
+   "advice": "Break the post into paragraphs. One block of text loses reactions even at the same length.",
+   "members": [
+    ["text.single_block", "One block of text with no paragraph breaks", "write"]
+   ]
+  },
+  "asks": {
+   "name": "Asks the reader",
+   "direction": "-",
+   "summary": "Asks the reader a question or to reply with a keyword.",
+   "advice": "Questions raise comments a little and lower reactions a little. \"Reply with a number or keyword\" clearly lowers reactions.",
+   "members": [
+    ["call_to_action.asks_reader_question", "Asks the reader a direct question", "write"],
+    ["r2_auto.asks_readers_to_reply_with_number_or_keyword_from_list", "Asks readers to reply with a keyword or number", "write"]
+   ]
+  }
+ },
+ "covered_by_length": ["text.under_80_words", "text.over_250_words"]
+}

@@ -1,0 +1,24 @@
+{
+ "posts": 15331,
+ "authors": 832,
+ "hit_rate": 0.1706346617963603,
+ "flop_rate": 0.1322809992824995,
+ "zero_comment_share": 0.4818994194768769,
+ "zero_repost_share": 0.714108668710456,
+ "confirmed_by_outcome": {
+  "comments": 57,
+  "flop": 50,
+  "hit": 71,
+  "lift": 78,
+  "reposts": 45,
+  "talk": 58
+ },
+ "corr_of_effects_with_reactions": {
+  "comments": 0.851,
+  "flop": -0.926,
+  "hit": 0.983,
+  "lift": 1.0,
+  "reposts": 0.331,
+  "talk": -0.701
+ }
+}

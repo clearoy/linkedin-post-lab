@@ -28,7 +28,21 @@
    "questions": 16,
    "estimate_usd": 0.7891,
    "cost_usd": 0.8815
+  },
+  {
+   "name": "r1_generate",
+   "posts": 2809,
+   "questions": 17,
+   "estimate_usd": 0.3008,
+   "cost_usd": 0.3235
+  },
+  {
+   "name": "r2_generate",
+   "posts": 2809,
+   "questions": 9,
+   "estimate_usd": 0.1593,
+   "cost_usd": 0.2085
   }
  ],
- "spent_usd": 4.1853
+ "spent_usd": 4.7173
 }

@@ -1,5 +1,7 @@
 # What content gets more reactions on LinkedIn: findings
 
+> First-pass findings. The full report, with comments/reposts, kinds of post, combinations and the scorecard behind the dashboard, is [REPORT.md](REPORT.md).
+
 832 authors, 15,331 posts. Content only: the post text, never the attached media. Method and scripts: [README.md](README.md).
 Every table row: [results/tables.md](results/tables.md). Jev spend: **$4.19 of the $5 budget** (ledger below).
 

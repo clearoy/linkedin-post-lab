@@ -47,7 +47,9 @@ linkedin-analysis/
 │   ├── discover_features.py # writes data/processed/features/feature_bank.json
 │   ├── judge_features.py    # writes data/processed/judgments*/features.parquet
 │   └── train_models.py      # writes data/processed/models/
-├── app/dashboard.py         # Streamlit: evaluate a post + pipeline overview
+├── app/dashboard.py         # Streamlit: evaluate a post (scorecard), what works, evidence, pipeline
+├── app/insights.py          # the "What works" and "Evidence" tabs
+├── research/                # auto-research: tests, scorecard, REPORT.md (see research/README.md)
 ├── tests/                   # pytest tests (uv run pytest)
 └── docs/
     ├── labels.md            # label definitions, choices, checks
@@ -66,9 +68,14 @@ linkedin-analysis/
 | 5. Theme model / RuleFit | done | `uv run python scripts/train_models.py --judgments data/processed/judgments_full_train data/processed/judgments_full_test --bank data/processed/features/feature_bank_general.json --themes 15`, then `scripts/name_themes.py` | `data/processed/models/` |
 | 5b. Baselines and learning curve | done | `scripts/compare_baselines.py --train data/processed/judgments_full_train --test data/processed/judgments_full_test`; `scripts/learning_curve.py --judgments` (same two folders) | `models/baselines.json`, `models/learning_curve.json` |
 | 5c. Compact model (14 questions) | done | `scripts/compact_model.py --judgments` (same two folders) | `models/model_bundle_compact.json`, `models/question_budget.json` |
-| 6. Dashboard | done | `uv run streamlit run app/dashboard.py` | http://localhost:8501 |
+| 6. Research and scorecard | done ($4.72 of Jev) | see [research/README.md](research/README.md); `uv run python research/scorecard.py` | [research/REPORT.md](research/REPORT.md), `data/processed/research/scorecard.json` |
+| 7. Dashboard | done | `uv run streamlit run app/dashboard.py` | http://localhost:8501 |
 
-Results are in [docs/models.md](docs/models.md). The models use content
+**What content works, with the evidence, and how the dashboard scores a draft: [research/REPORT.md](research/REPORT.md).**
+The dashboard's Evaluate tab now uses the research scorecard (same accuracy as the theme model, 61.6% vs 61.3%,
+with one signed weight per tested property and edit-level suggestions); the theme model is kept as a second opinion.
+
+Theme-model results are in [docs/models.md](docs/models.md). The models use content
 features only. On all 165 held-out authors the theme model ranks same-author
 posts correctly 61.3% of the time [59.3, 63.4] (chance is 50%), vs 57.9% for
 media, length and time alone.

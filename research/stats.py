@@ -15,7 +15,6 @@ Main numbers per property x (a yes/no content property):
                (ties count half). Averaged over authors; 0.5 = no difference.
 """
 
-import re
 import sys
 from pathlib import Path
 
@@ -29,6 +28,7 @@ from scipy import stats as st  # noqa: E402
 from linkedin_analysis.data import load_all  # noqa: E402
 from linkedin_analysis.model import ATTACHMENT_FEATURES  # noqa: E402
 from linkedin_analysis.paths import PROCESSED  # noqa: E402
+from linkedin_analysis.textchecks import text_checks  # noqa: E402, F401
 
 RESEARCH_DATA = PROCESSED / "research"  # gitignored, like all data
 RESULTS = Path(__file__).resolve().parent / "results"
@@ -55,40 +55,6 @@ def load_judgments(dirs) -> pd.DataFrame:
         wide = w if wide is None else wide.combine_first(w)
     wide = wide.reset_index()
     return wide[[c for c in wide.columns if c not in ATTACHMENT_FEATURES]]
-
-
-# ---------------------------------------------------------------- text checks (free, no LLM)
-
-EMOJI = re.compile("[\U0001F300-\U0001FAFF\U00002600-\U000027BF\U0001F000-\U0001F2FF]")
-URL = re.compile(r"https?://|www\.|lnkd\.in", re.I)
-HASHTAG = re.compile(r"(?:^|\s)#\w+")
-BULLET = re.compile(r"^\s*(?:[-•▪►✅✔→➡️👉]|\d+[.)])\s+", re.M)
-
-
-def text_checks(body: pd.Series) -> pd.DataFrame:
-    """Simple yes/no checks a text search can answer. Named `text.*`."""
-    b = body.fillna("")
-    first = b.str.strip().str.split("\n").str[0].fillna("")
-    words = b.str.split().str.len().fillna(0)
-    paras = b.str.split(r"\n\s*\n").apply(lambda ps: [p for p in ps if p.strip()])
-    words_per_para = words / paras.str.len().clip(lower=1)
-    return pd.DataFrame({
-        "text.under_80_words": words < 80,
-        "text.over_250_words": words > 250,
-        "text.has_link": b.str.contains(URL),
-        "text.has_hashtag": b.str.contains(HASHTAG),
-        "text.three_plus_hashtags": b.str.count(HASHTAG) >= 3,
-        "text.has_emoji": b.str.contains(EMOJI),
-        "text.three_plus_emoji": b.str.count(EMOJI) >= 3,
-        "text.has_bullet_or_numbered_list": b.str.count(BULLET) >= 2,
-        "text.first_line_under_60_chars": first.str.len() < 60,
-        "text.first_line_is_question": first.str.strip().str.endswith("?"),
-        "text.first_line_has_number": first.str.contains(r"\d"),
-        "text.ends_with_question": b.str.strip().str.endswith("?"),
-        "text.has_exclamation": b.str.contains("!"),
-        "text.short_paragraphs": (words_per_para <= 20) & (paras.str.len() >= 3),
-        "text.single_block": paras.str.len() <= 1,
-    }).astype(float)
 
 
 # ---------------------------------------------------------------- statistics

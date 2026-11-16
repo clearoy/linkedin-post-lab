@@ -5,7 +5,7 @@ statistical test that was decided before the test data was looked at, and turn t
 plain guidance for writers. Content only: attached media is never an input (it appears only in one
 robustness check, to see whether an effect is really about photos).
 
-Results: [FINDINGS.md](FINDINGS.md). Raw tables: `results/`.
+**Main report: [REPORT.md](REPORT.md)** (insights, the scorecard behind the dashboard, practical guide). First-pass single-property tables: [FINDINGS.md](FINDINGS.md). Raw tables: `results/`.
 
 ## How every claim is tested
 
@@ -36,10 +36,14 @@ the same author. It is not proof that adding it to any post will cause more reac
 | 5. Jev scores the survivors on the remaining train authors and all test authors; same discovery → confirmation test as step 1 | `score.py`, `effects.py --name new` | paid |
 | 6. Joint model, train-only checklist evaluated on test authors, levers by post type | `joint.py`, `playbook.py`, `tables.py` | $0 |
 | 7. Prediction vs the dashboard model: combinations and small train-chosen subsets, scored on test authors | `compare_dashboard.py`, `subset.py` | $0 |
+| 8. Comments, reposts, 2× hits and flops for every property | `outcomes.py` | $0 |
+| 9. Length curve, wear-off, combinations, variety; kinds of post and levers inside each | `shape.py`, `archetypes.py` | $0 |
+| 10. Score the 150 generation authors on the scorecard's 26 new questions | `score.py --sets generate` | $0.53 |
+| 11. Scorecard: one signed weight per property (grouped into drivers in `drivers.json`), calibrated, tested once; writes the dashboard bundle | `scorecard.py` | $0 |
 
 Author sets are disjoint and fixed (seeded, `data/processed/research/authors.json`). Test authors are
 never shown to DeepSeek and never used to choose anything. Every paid run is logged in
-`results/jev_ledger.json`, and `score.py` refuses a run that would take the total past $5.
+`results/jev_ledger.json`, and `score.py` refuses a run that would take the total past $5. Total spent: $4.72.
 
 ```bash
 uv run python research/effects.py --name existing
@@ -59,6 +63,12 @@ uv run python research/playbook.py --effects existing r1 r2 --joint r2_train --j
 uv run python research/tables.py --effects existing r1 r2 --joint r2 > research/results/tables.md
 uv run python research/compare_dashboard.py
 uv run python research/subset.py
+uv run python research/outcomes.py
+uv run python research/shape.py
+uv run python research/archetypes.py
+uv run python research/score.py --round 1 --sets generate --ids-from <r1 ids in drivers.json> --name r1_generate
+uv run python research/score.py --round 2 --sets generate --ids-from <r2 ids in drivers.json> --name r2_generate
+uv run python research/scorecard.py
 ```
 
 Data stays in `data/processed/research/` (gitignored). `results/` holds only statistics and question

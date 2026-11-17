@@ -8,7 +8,7 @@
 
 **Deliverables.**
 - This report.
-- The dashboard (`uv run streamlit run app/dashboard.py`) with four tabs: **Evaluate a post**, **What works**, **Evidence**, **Pipeline**.
+- The dashboard (`uv run streamlit run app/dashboard.py`) with four tabs: **Evaluate a post** (choose a 10, 20, 40 or full 64-question scorecard; see each question's weight and contribution), **Scorecard** (accuracy of each size and every weight), **Research findings** (the main results in a few tables), **Pipeline** (the steps from data to scorecard).
 - The first-pass write-up with every single-property table: [FINDINGS.md](FINDINGS.md).
 
 ---
@@ -91,7 +91,7 @@ Screening had to pass on its own author set before the confirmation authors were
 
 ## 3. What works: the drivers
 
-Every property that passed discovery on train authors was grouped by meaning into 14 drivers. Each driver below shows the strongest confirmed properties; all multipliers are reactions vs the same author's usual post. The full tables are in the dashboard's **What works** tab.
+Every property that passed discovery on train authors was grouped by meaning into 14 drivers. Each driver below shows the strongest confirmed properties; all multipliers are reactions vs the same author's usual post. Every property's numbers can be searched in the dashboard's **Research findings** tab. The grouping is for this report only; the scorecard and the dashboard work question by question.
 
 | Driver | Direction | Strongest confirmed properties (all authors · held-out authors) |
 |---|---|---|
@@ -143,7 +143,7 @@ Inside each kind of post, the confirmed properties were re-tested. A lever count
 - **Discussion question:** self-deprecating humour 1.51×, an event you attended 1.38×, a place 1.28×. Hypothetical examples and generic advice hurt (0.85×).
 - **Event or link promotion:** thanks 1.64×, pride 1.43×, a personal anecdote 1.37×.
 
-The Evaluate tab shows these levers for the kind of post being evaluated.
+The per-type tables are in `research/results/archetype_levers.csv`.
 
 ---
 
@@ -203,11 +203,12 @@ The Evaluate tab shows these levers for the kind of post being evaluated.
 
 **Design.** It is built for being interpretable, being applied to new posts, and helping improve them:
 - **One weight per property.** Every one of the 106 properties that passed discovery on train authors gets its own weight on Jev's P(yes), fitted jointly within author.
-- **Directions fixed in advance by the driver grouping.** A helpful property can only add and a harmful one only subtract, so no weight can flip sign because of a correlated neighbour. 64 keep a non-zero weight.
+- **Directions fixed in advance.** A property that helped on train authors can only add and one that hurt can only subtract, so no weight can flip sign because of a correlated neighbour. 64 keep a non-zero weight: that is the full scorecard.
 - **Length** enters as log(min(words, 120)).
 - **Chosen on train authors only.** The length cap, the ridge strength and a shrink factor (0.95, so out-of-fold predictions are calibrated) were all set on train. The grouping into drivers used meaning only, not test results.
 - **Training data.** It trains on all 667 train authors after the 150 generation authors were scored on the 26 new questions it uses ($0.53 of Jev).
-- **Testing.** The 165 held-out authors were used once.
+- **Smaller sizes.** The 10, 20 and 40-question scorecards keep the questions that move the full score most (|weight| × spread of the answers on train posts) and are refitted on those alone, each with its own shrink factor and calibration. A question whose refitted weight is exactly 0 is swapped for the next one, so every question counts.
+- **Testing.** The 165 held-out authors were used once per size.
 
 **Accuracy on held-out authors** (3,032 posts):
 
@@ -243,18 +244,25 @@ Every content-only model lands between 0.59 and 0.62. Text-only yes/no questions
 | Higher score did better | 52% | 55% | 64% | 75% | 85% | 91% |
 | Share of pairs | 28% | 27% | 25% | 13% | 6% | 1% |
 
-**What the Evaluate tab shows for a draft.** About $0.0011 of Jev per draft (173 questions).
-- **Headline:** expected reactions vs the author's usual post, the score band with its held-out outcomes, and the kind of post.
-- **Drivers:** a chart of the drivers pushing the score up or down.
-- **Edits that should help:** add a confirmed helpful property the post lacks, or remove a confirmed harmful one. Each edit shows its expected gain, the property's own evidence, and whether it was also shown to work within this kind of post.
-  - **Only edits that held up:** an edit is suggested only if the property was confirmed on held-out authors on its own and is a writing choice. Non-replicated properties (hashtags, money amounts) and descriptive ones (topic) count toward the score but are never suggested.
-- **"If it's true, say it":** real occasions such as a milestone, today's news or an event, which help only when they actually happened.
-- **Compare mode:** scores two drafts and gives the expected ratio and how often a gap that size held up.
-- **Second opinion:** the previous theme model's prediction, computed from the same answers.
+**Smaller scorecards** (held-out authors, paired difference from the full scorecard over authors):
 
-**Example** (two drafts written for the test, not from the dataset):
-- **Draft A, a generic "5 lessons" framework post with a link:** 0.80×, Low band. Suggested: name people, credit them, mention life outside work, drop the framework and the link.
-- **Draft B, the same topic told as a two-year anniversary story** with named colleagues, a place and thanks: 2.38×, High band.
+| Scorecard | Jev questions | Text checks | Pairwise accuracy (95% CI) | vs full (points, 95% CI) | Same-author calibration slope |
+|---|---|---|---|---|---|
+| 10 questions | 9 | 1 | 59.5% [57.1, 61.8] | −2.1 [−3.5, −0.7] | 0.96 |
+| 20 questions | 18 | 2 | 60.9% [58.6, 63.4] | −0.7 [−1.6, +0.2] | 0.99 |
+| 40 questions | 36 | 4 | 61.4% [59.2, 63.6] | −0.2 [−0.6, +0.1] | 1.01 |
+| 64 questions (full) | 57 | 7 | 61.6% [59.4, 63.9] | — | 1.02 |
+
+20–40 questions keep almost all the accuracy; 10 lose about 2 points. Weights in a small scorecard are larger than in the full one, because each kept question also stands in for related ones that were dropped (the milestone question is +0.47 in the full scorecard and +0.81 in the 10-question one).
+
+**What the Evaluate tab shows for a draft.** Jev answers only the chosen scorecard's questions (up to 57, about $0.0004 per draft; switching to a smaller size re-scores without asking again).
+- **Headline:** the score, the expected reactions vs the author's usual post, and the score band with what held-out posts in it got.
+- **One table, one row per question:** Jev's answer, the question's weight, and its contribution = weight × (answer − the average post's answer). The contributions add up to the score, so negative rows are what pull the post down: a helpful question answered no, or a harmful one answered yes.
+- **Compare mode:** both drafts' answers and contributions side by side, sorted by where they differ most, with the expected ratio and how often a gap that size held up.
+
+**Example** (two drafts written for the test, not from the dataset, full scorecard):
+- **A five-year work anniversary** that names and thanks two colleagues and a city: score +1.20, 1.96× the author's usual, High band. The milestone (+0.43) and crediting people (+0.20) contribute most.
+- **A generic 4-step onboarding framework** with a question and a link: score −0.69, 0.75×, Low band. The framework (−0.08), the link and pointing readers elsewhere pull it down, and it has none of the people or moments.
 
 ---
 
@@ -281,7 +289,7 @@ Every content-only model lands between 0.59 and 0.62. Text-only yes/no questions
 - **Multiple looks at the held-out authors.** The held-out authors were used once per analysis (single properties, two rounds of new questions, interactions, post types, scorecard), each with its own correction. Nothing was chosen with them.
   - The earlier theme model's design partly used an earlier 45-author test sample, so its test score may be slightly optimistic.
   - The new questions were proposed from the 150 generation authors, who are now also in the scorecard's training data. That affects train fit only, not the held-out scores.
-- **The scorecard's suggestion gains are its own weights.** Applying an edit moves the score by that amount, but whether reactions move with it is the association above, not a guarantee.
+- **A contribution is the scorecard's own arithmetic.** Changing an answer moves the score by its weight, but whether reactions move with it is the association above, not a guarantee.
 - **The data covers 1k–20k-follower accounts and four months of 2026.**
 
 ---
@@ -296,7 +304,7 @@ uv run python research/shape.py         # length curve, wear-off, combinations, 
 uv run python research/archetypes.py    # kinds of post and levers inside each
 uv run python research/score.py --round 1 --sets generate --ids-from <r1 ids> --name r1_generate  # $0.32
 uv run python research/score.py --round 2 --sets generate --ids-from <r2 ids> --name r2_generate  # $0.21
-uv run python research/scorecard.py     # fit, calibrate, test; writes the dashboard bundle
+uv run python research/scorecard.py     # fit, calibrate, test 10/20/40/64-question scorecards; writes the dashboard bundle
 uv run streamlit run app/dashboard.py
 ```
 

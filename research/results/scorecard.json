@@ -1,362 +1,12 @@
 {
- "metrics": {
+ "common": {
   "train_authors": 667,
   "train_posts": 12299,
   "test_authors": 165,
   "test_posts": 3032,
-  "items": 106,
-  "items_nonzero": 64,
+  "properties_tested": 106,
   "length_cap": 120,
-  "ridge": 10.0,
-  "shrink": 0.9462,
-  "cv_pairwise": 0.607,
-  "test_pairwise": 0.616,
-  "test_pairwise_ci95": [
-   0.5939,
-   0.6389
-  ],
-  "test_author_spearman": 0.2882,
-  "dashboard_test_pairwise": 0.6133,
-  "vs_dashboard": {
-   "mean": 0.0027,
-   "ci95": [
-    -0.0131,
-    0.0176
-   ]
-  },
-  "test_calibration_slope": 1.026,
-  "pooled_calibration": {
-   "a": 0.0649,
-   "b": 0.5048
-  },
-  "test_pooled_slope": 0.561,
-  "test_calibration_slope_ci95": [
-   0.879,
-   1.173
-  ],
-  "max_gap_seen": 1.84
- },
- "bands": [
-  {
-   "name": "Low",
-   "lo": null,
-   "hi": -0.41594590534402337,
-   "posts": 249,
-   "share": 0.08212401055408972,
-   "predicted": 0.817880559952745,
-   "actual": 0.8373634320941329,
-   "actual_lo": 0.7497387916910461,
-   "actual_hi": 0.9196342253974664,
-   "median_ratio": 0.8571428571428571,
-   "above_usual": 0.28112449799196787,
-   "hit_rate": 0.07228915662650602,
-   "flop_rate": 0.1606425702811245,
-   "comments": 0.9592399792024423,
-   "reposts": 1.0034058795836334
-  },
-  {
-   "name": "Below average",
-   "lo": -0.41594590534402337,
-   "hi": -0.20909707333297584,
-   "posts": 540,
-   "share": 0.17810026385224276,
-   "predicted": 0.9168254902608127,
-   "actual": 0.8893682349875774,
-   "actual_lo": 0.8221774438011705,
-   "actual_hi": 0.9704880188856767,
-   "median_ratio": 1.0,
-   "above_usual": 0.37592592592592594,
-   "hit_rate": 0.09444444444444444,
-   "flop_rate": 0.19444444444444445,
-   "comments": 1.0481582930888245,
-   "reposts": 1.0897880859070106
-  },
-  {
-   "name": "Average",
-   "lo": -0.20909707333297584,
-   "hi": 0.146756829767642,
-   "posts": 1277,
-   "share": 0.42117414248021107,
-   "predicted": 1.0462888873507428,
-   "actual": 0.9816725308908778,
-   "actual_lo": 0.9348163018699772,
-   "actual_hi": 1.0285880227850495,
-   "median_ratio": 1.0,
-   "above_usual": 0.39075959279561473,
-   "hit_rate": 0.12372748629600626,
-   "flop_rate": 0.139389193422083,
-   "comments": 1.0873511180017061,
-   "reposts": 1.0675611192775465
-  },
-  {
-   "name": "Above average",
-   "lo": 0.146756829767642,
-   "hi": 0.4707606857191011,
-   "posts": 623,
-   "share": 0.2054749340369393,
-   "predicted": 1.2297553024211996,
-   "actual": 1.2467729675301416,
-   "actual_lo": 1.164334688819413,
-   "actual_hi": 1.3402885526496724,
-   "median_ratio": 1.178082191780822,
-   "above_usual": 0.579454253611557,
-   "hit_rate": 0.24558587479935795,
-   "flop_rate": 0.10112359550561797,
-   "comments": 1.2538890258020379,
-   "reposts": 1.1313513487216422
-  },
-  {
-   "name": "High",
-   "lo": 0.4707606857191011,
-   "hi": null,
-   "posts": 343,
-   "share": 0.11312664907651715,
-   "predicted": 1.5591850590861633,
-   "actual": 1.6621036227826405,
-   "actual_lo": 1.4573059925270595,
-   "actual_hi": 1.9188735855464916,
-   "median_ratio": 1.5833333333333333,
-   "above_usual": 0.7084548104956269,
-   "hit_rate": 0.3848396501457726,
-   "flop_rate": 0.061224489795918366,
-   "comments": 1.5163241672245493,
-   "reposts": 1.2050784232763985
-  }
- ],
- "pair_gap": [
-  {
-   "lo": 0.0,
-   "hi": 0.1,
-   "pairs": 7572,
-   "share": 0.2751053625926464,
-   "accuracy": 0.5150554675118859
-  },
-  {
-   "lo": 0.1,
-   "hi": 0.25,
-   "pairs": 7443,
-   "share": 0.27041854381630576,
-   "accuracy": 0.5542120112857719
-  },
-  {
-   "lo": 0.25,
-   "hi": 0.5,
-   "pairs": 6908,
-   "share": 0.25098096206946663,
-   "accuracy": 0.6352055587724378
-  },
-  {
-   "lo": 0.5,
-   "hi": 0.8,
-   "pairs": 3694,
-   "share": 0.13421014387443686,
-   "accuracy": 0.7455332972387656
-  },
-  {
-   "lo": 0.8,
-   "hi": 1.2,
-   "pairs": 1571,
-   "share": 0.05707745967155937,
-   "accuracy": 0.8516868236791852
-  },
-  {
-   "lo": 1.2,
-   "hi": null,
-   "pairs": 336,
-   "share": 0.012207527975584944,
-   "accuracy": 0.9136904761904762
-  }
- ],
- "drivers": [
-  {
-   "id": "people",
-   "name": "Real people",
-   "direction": "+",
-   "summary": "Name, thank and credit the actual people involved.",
-   "advice": "Say who was involved and what they did. Replace \"thanks to the team\" with names. If someone helped you get here, credit them.",
-   "items": 14,
-   "items_nonzero": 8,
-   "share_any": 0.5716724936986747,
-   "swing": 1.2842137528657231,
-   "low": 0.9284360639768323,
-   "high": 1.1923103620155686
-  },
-  {
-   "id": "moments",
-   "name": "Your own news and real moments",
-   "direction": "+",
-   "summary": "Something that actually happened to you: a milestone, an event, a result.",
-   "advice": "When you have news, post it. Frame other posts around what actually happened: where you were, what you finished, what comes next.",
-   "items": 13,
-   "items_nonzero": 9,
-   "share_any": 0.5101227742092853,
-   "swing": 1.1897935925508918,
-   "low": 0.935317976969869,
-   "high": 1.1128353359964127
-  },
-  {
-   "id": "voice",
-   "name": "Personal voice",
-   "direction": "+",
-   "summary": "Write as a person: your experience, your feelings, your mistakes.",
-   "advice": "Anchor the post in something you lived through and say how it felt. A doubt, a mistake or a joke at your own expense works better than a polished brand voice.",
-   "items": 15,
-   "items_nonzero": 7,
-   "share_any": 0.8072200991950566,
-   "swing": 1.1338066780484903,
-   "low": 0.9425164068917451,
-   "high": 1.0686313963041287
-  },
-  {
-   "id": "concrete",
-   "name": "Concrete details",
-   "direction": "+",
-   "summary": "Places, names, numbers and examples instead of general statements.",
-   "advice": "Swap general statements for specifics: the city, the company, the number, the date, what happened first.",
-   "items": 15,
-   "items_nonzero": 10,
-   "share_any": 0.9659321896089113,
-   "swing": 1.2307071927416329,
-   "low": 0.9036783911758928,
-   "high": 1.1121634959453583
-  },
-  {
-   "id": "company_news",
-   "name": "Company and market news",
-   "direction": "+",
-   "summary": "Funding, launches, hiring and other recent developments.",
-   "advice": "Report the development plainly: who, what, how much.",
-   "items": 9,
-   "items_nonzero": 3,
-   "share_any": 0.6102122123749898,
-   "swing": 1.1139309735908984,
-   "low": 0.9638546648845941,
-   "high": 1.073667565255025
-  },
-  {
-   "id": "rhetoric",
-   "name": "Contrast and analogy",
-   "direction": "+",
-   "summary": "Explains by comparing two things or using a metaphor.",
-   "advice": "A contrast or an analogy helps a little. It does not make up for missing people or experience.",
-   "items": 3,
-   "items_nonzero": 2,
-   "share_any": 0.7189202374176762,
-   "swing": 1.0867880477984755,
-   "low": 0.9506609962033595,
-   "high": 1.033167008182003
-  },
-  {
-   "id": "marks",
-   "name": "Hashtags, emoji and emphasis",
-   "direction": "+",
-   "summary": "Surface marks: hashtags, emoji, exclamation marks, capitals.",
-   "advice": "These go with more reactions on train authors, but hashtags did not hold up on held-out authors. Do not rely on them.",
-   "items": 10,
-   "items_nonzero": 7,
-   "share_any": 0.8993414098707212,
-   "swing": 1.2017883070483517,
-   "low": 0.9234881882857061,
-   "high": 1.1098373063790283
-  },
-  {
-   "id": "lists",
-   "name": "Lists",
-   "direction": "+",
-   "summary": "Items set out as a list.",
-   "advice": "A list is fine and slightly helps reposts. It is not a substitute for content.",
-   "items": 5,
-   "items_nonzero": 2,
-   "share_any": 0.7283518985283356,
-   "swing": 1.0904527646892475,
-   "low": 0.952190388752873,
-   "high": 1.0383186419260997
-  },
-  {
-   "id": "lecture",
-   "name": "Lecture mode",
-   "direction": "-",
-   "summary": "Advice, frameworks and made-up examples with nothing of your own behind them.",
-   "advice": "If you give advice, tie it to something that happened to you or to a named person. Replace \"imagine a company that...\" with a real case.",
-   "items": 9,
-   "items_nonzero": 5,
-   "share_any": 0.754288966582649,
-   "swing": 1.1483153079861832,
-   "low": 0.9236857903532979,
-   "high": 1.0606825328320084
-  },
-  {
-   "id": "problems",
-   "name": "Problem and risk framing",
-   "direction": "-",
-   "summary": "The post is built around a problem, a gap or a risk.",
-   "advice": "Problem posts draw comments more than reactions. If reactions matter, lead with what you or someone did about it.",
-   "items": 3,
-   "items_nonzero": 3,
-   "share_any": 0.6359866655825677,
-   "swing": 1.1661761959342967,
-   "low": 0.9188822481366122,
-   "high": 1.071578604643509
-  },
-  {
-   "id": "hooks",
-   "name": "Hook-style openers",
-   "direction": "-",
-   "summary": "Opens with a bold claim, a contradiction or a question.",
-   "advice": "Open with what happened or who it is about, not with a claim, a \"everyone is wrong\" line or a question.",
-   "items": 3,
-   "items_nonzero": 2,
-   "share_any": 0.5337832344093015,
-   "swing": 1.0449766036668797,
-   "low": 0.9775535843047742,
-   "high": 1.021520624429188
-  },
-  {
-   "id": "elsewhere",
-   "name": "Sends readers elsewhere",
-   "direction": "-",
-   "summary": "Links out, or summarises someone else's article.",
-   "advice": "Say the point in the post itself. If a link is needed, make the post worth reading without clicking it.",
-   "items": 4,
-   "items_nonzero": 3,
-   "share_any": 0.39588584437759167,
-   "swing": 1.1424627371414824,
-   "low": 0.9176974657753265,
-   "high": 1.0484351586174814
-  },
-  {
-   "id": "layout",
-   "name": "No paragraph breaks",
-   "direction": "-",
-   "summary": "The post is one block of text.",
-   "advice": "Break the post into paragraphs. One block of text loses reactions even at the same length.",
-   "items": 1,
-   "items_nonzero": 1,
-   "share_any": 0.13643385641109032,
-   "swing": 1.069876036199667,
-   "low": 0.9433407972749601,
-   "high": 1.0092577129739682
-  },
-  {
-   "id": "asks",
-   "name": "Asks the reader",
-   "direction": "-",
-   "summary": "Asks the reader a question or to reply with a keyword.",
-   "advice": "Questions raise comments a little and lower reactions a little. \"Reply with a number or keyword\" clearly lowers reactions.",
-   "items": 2,
-   "items_nonzero": 2,
-   "share_any": 0.3790552077404667,
-   "swing": 1.0423006459685227,
-   "low": 0.9762896248675594,
-   "high": 1.0175873066518237
-  }
- ],
- "length": {
-  "weight": 0.10443287288316894,
-  "cap": 120,
-  "mean": 4.413950846818159,
-  "low": 0.8931775643033008,
-  "high": 1.0397808282792362
+  "ridge": 10.0
  },
  "cv_grid": [
   {
@@ -434,5 +84,591 @@
    "ridge": 30.0,
    "cv": 0.6059
   }
- ]
+ ],
+ "sizes": {
+  "10": {
+   "metrics": {
+    "questions": 10,
+    "jev_questions": 9,
+    "cv_pairwise": 0.5977,
+    "shrink": 0.9975,
+    "test_pairwise": 0.5949,
+    "test_pairwise_ci95": [
+     0.5714,
+     0.6181
+    ],
+    "test_calibration_slope": 0.959,
+    "test_calibration_slope_ci95": [
+     0.805,
+     1.114
+    ],
+    "pooled_calibration": {
+     "a": 0.065,
+     "b": 0.565
+    },
+    "max_gap_seen": 2.242,
+    "vs_full": {
+     "mean": -0.0211,
+     "ci95": [
+      -0.0347,
+      -0.0074
+     ]
+    }
+   },
+   "bands": [
+    {
+     "name": "Low",
+     "lo": null,
+     "hi": -0.35698839084755446,
+     "posts": 266,
+     "share": 0.08773087071240106,
+     "predicted": 0.8142500024780513,
+     "actual": 0.782275082638662,
+     "actual_lo": 0.6959087687624648,
+     "actual_hi": 0.8604741174946904,
+     "above_usual": 0.2744360902255639,
+     "hit_rate": 0.07142857142857142,
+     "flop_rate": 0.19924812030075187
+    },
+    {
+     "name": "Below average",
+     "lo": -0.35698839084755446,
+     "hi": -0.16551359965487808,
+     "posts": 536,
+     "share": 0.17678100263852242,
+     "predicted": 0.926747793940199,
+     "actual": 0.944980548578928,
+     "actual_lo": 0.8649936850802817,
+     "actual_hi": 1.0322831483390402,
+     "above_usual": 0.40671641791044777,
+     "hit_rate": 0.1287313432835821,
+     "flop_rate": 0.18097014925373134
+    },
+    {
+     "name": "Average",
+     "lo": -0.16551359965487808,
+     "hi": 0.11966792421611772,
+     "posts": 1272,
+     "share": 0.41952506596306066,
+     "predicted": 1.0493045999394055,
+     "actual": 1.0004815820355657,
+     "actual_lo": 0.9514690242205662,
+     "actual_hi": 1.049722528634711,
+     "above_usual": 0.4009433962264151,
+     "hit_rate": 0.12185534591194969,
+     "flop_rate": 0.13050314465408805
+    },
+    {
+     "name": "Above average",
+     "lo": 0.11966792421611772,
+     "hi": 0.3798374588169754,
+     "posts": 615,
+     "share": 0.20283641160949867,
+     "predicted": 1.2140961327095356,
+     "actual": 1.219483471764405,
+     "actual_lo": 1.1319049981605835,
+     "actual_hi": 1.311951144062769,
+     "above_usual": 0.5479674796747968,
+     "hit_rate": 0.23902439024390243,
+     "flop_rate": 0.1040650406504065
+    },
+    {
+     "name": "High",
+     "lo": 0.3798374588169754,
+     "hi": null,
+     "posts": 343,
+     "share": 0.11312664907651715,
+     "predicted": 1.5576557627095486,
+     "actual": 1.5646790770772516,
+     "actual_lo": 1.3761688203643845,
+     "actual_hi": 1.7968277548831852,
+     "above_usual": 0.6938775510204082,
+     "hit_rate": 0.3556851311953353,
+     "flop_rate": 0.07871720116618076
+    }
+   ],
+   "pair_gap": [
+    {
+     "lo": 0.0,
+     "hi": 0.1,
+     "pairs": 8952,
+     "share": 0.32524342392094174,
+     "accuracy": 0.5032394995531725
+    },
+    {
+     "lo": 0.1,
+     "hi": 0.25,
+     "pairs": 7481,
+     "share": 0.27179915709925884,
+     "accuracy": 0.5419061622777703
+    },
+    {
+     "lo": 0.25,
+     "hi": 0.5,
+     "pairs": 6426,
+     "share": 0.23346897253306206,
+     "accuracy": 0.6434796140678494
+    },
+    {
+     "lo": 0.5,
+     "hi": 0.8,
+     "pairs": 3113,
+     "share": 0.11310129341665455,
+     "accuracy": 0.72277545775779
+    },
+    {
+     "lo": 0.8,
+     "hi": 1.2,
+     "pairs": 1269,
+     "share": 0.04610521726493242,
+     "accuracy": 0.8163908589440504
+    },
+    {
+     "lo": 1.2,
+     "hi": null,
+     "pairs": 283,
+     "share": 0.010281935765150414,
+     "accuracy": 0.9328621908127208
+    }
+   ]
+  },
+  "20": {
+   "metrics": {
+    "questions": 20,
+    "jev_questions": 18,
+    "cv_pairwise": 0.6024,
+    "shrink": 0.9836,
+    "test_pairwise": 0.6092,
+    "test_pairwise_ci95": [
+     0.5859,
+     0.6336
+    ],
+    "test_calibration_slope": 0.986,
+    "test_calibration_slope_ci95": [
+     0.837,
+     1.134
+    ],
+    "pooled_calibration": {
+     "a": 0.0649,
+     "b": 0.5351
+    },
+    "max_gap_seen": 2.032,
+    "vs_full": {
+     "mean": -0.0068,
+     "ci95": [
+      -0.0159,
+      0.0021
+     ]
+    }
+   },
+   "bands": [
+    {
+     "name": "Low",
+     "lo": null,
+     "hi": -0.39040701395670824,
+     "posts": 261,
+     "share": 0.08608179419525067,
+     "predicted": 0.809948659774967,
+     "actual": 0.8771449984961558,
+     "actual_lo": 0.7771484192101524,
+     "actual_hi": 0.9714736520855232,
+     "above_usual": 0.31417624521072796,
+     "hit_rate": 0.10344827586206896,
+     "flop_rate": 0.16475095785440613
+    },
+    {
+     "name": "Below average",
+     "lo": -0.39040701395670824,
+     "hi": -0.19477303161955192,
+     "posts": 537,
+     "share": 0.17711081794195252,
+     "predicted": 0.920289610196328,
+     "actual": 0.8800401863674593,
+     "actual_lo": 0.8226530737398249,
+     "actual_hi": 0.938395401462812,
+     "above_usual": 0.36312849162011174,
+     "hit_rate": 0.07262569832402235,
+     "flop_rate": 0.1750465549348231
+    },
+    {
+     "name": "Average",
+     "lo": -0.19477303161955192,
+     "hi": 0.13401115205831518,
+     "posts": 1267,
+     "share": 0.4178759894459103,
+     "predicted": 1.0460750252536224,
+     "actual": 0.9821742862133799,
+     "actual_lo": 0.9311947197577889,
+     "actual_hi": 1.0302804577128033,
+     "above_usual": 0.39857932123125495,
+     "hit_rate": 0.1239147592738753,
+     "flop_rate": 0.14601420678768745
+    },
+    {
+     "name": "Above average",
+     "lo": 0.13401115205831518,
+     "hi": 0.4478248852666812,
+     "posts": 612,
+     "share": 0.20184696569920843,
+     "predicted": 1.2282034037204799,
+     "actual": 1.2554148315591924,
+     "actual_lo": 1.1669579810787045,
+     "actual_hi": 1.354600919940175,
+     "above_usual": 0.5702614379084967,
+     "hit_rate": 0.2581699346405229,
+     "flop_rate": 0.10294117647058823
+    },
+    {
+     "name": "High",
+     "lo": 0.4478248852666812,
+     "hi": null,
+     "posts": 355,
+     "share": 0.1170844327176781,
+     "predicted": 1.5859767481257057,
+     "actual": 1.6005141881494034,
+     "actual_lo": 1.4197464558616357,
+     "actual_hi": 1.8281377413450732,
+     "above_usual": 0.6901408450704225,
+     "hit_rate": 0.36901408450704226,
+     "flop_rate": 0.061971830985915494
+    }
+   ],
+   "pair_gap": [
+    {
+     "lo": 0.0,
+     "hi": 0.1,
+     "pairs": 7889,
+     "share": 0.2866225839267548,
+     "accuracy": 0.5019647610597033
+    },
+    {
+     "lo": 0.1,
+     "hi": 0.25,
+     "pairs": 7376,
+     "share": 0.26798430460688855,
+     "accuracy": 0.5502982646420824
+    },
+    {
+     "lo": 0.25,
+     "hi": 0.5,
+     "pairs": 6738,
+     "share": 0.24480453422467666,
+     "accuracy": 0.6316414366280796
+    },
+    {
+     "lo": 0.5,
+     "hi": 0.8,
+     "pairs": 3562,
+     "share": 0.1294143293125999,
+     "accuracy": 0.7330151600224593
+    },
+    {
+     "lo": 0.8,
+     "hi": 1.2,
+     "pairs": 1613,
+     "share": 0.058603400668507485,
+     "accuracy": 0.8555486670799752
+    },
+    {
+     "lo": 1.2,
+     "hi": null,
+     "pairs": 346,
+     "share": 0.01257084726057259,
+     "accuracy": 0.9161849710982659
+    }
+   ]
+  },
+  "40": {
+   "metrics": {
+    "questions": 40,
+    "jev_questions": 36,
+    "cv_pairwise": 0.6069,
+    "shrink": 0.9665,
+    "test_pairwise": 0.6135,
+    "test_pairwise_ci95": [
+     0.5917,
+     0.6365
+    ],
+    "test_calibration_slope": 1.008,
+    "test_calibration_slope_ci95": [
+     0.863,
+     1.152
+    ],
+    "pooled_calibration": {
+     "a": 0.0649,
+     "b": 0.5116
+    },
+    "max_gap_seen": 1.937,
+    "vs_full": {
+     "mean": -0.0025,
+     "ci95": [
+      -0.0063,
+      0.0011
+     ]
+    }
+   },
+   "bands": [
+    {
+     "name": "Low",
+     "lo": null,
+     "hi": -0.41725055671990996,
+     "posts": 262,
+     "share": 0.08641160949868074,
+     "predicted": 0.8122726326352057,
+     "actual": 0.8453224182511285,
+     "actual_lo": 0.7577481407549296,
+     "actual_hi": 0.9272841112812138,
+     "above_usual": 0.2862595419847328,
+     "hit_rate": 0.07633587786259542,
+     "flop_rate": 0.16412213740458015
+    },
+    {
+     "name": "Below average",
+     "lo": -0.41725055671990996,
+     "hi": -0.20754963959111222,
+     "posts": 520,
+     "share": 0.17150395778364116,
+     "predicted": 0.9158112783816174,
+     "actual": 0.8878121997482729,
+     "actual_lo": 0.8193352062334924,
+     "actual_hi": 0.9709408105158481,
+     "above_usual": 0.3769230769230769,
+     "hit_rate": 0.09230769230769231,
+     "flop_rate": 0.18461538461538463
+    },
+    {
+     "name": "Average",
+     "lo": -0.20754963959111222,
+     "hi": 0.15183657971036155,
+     "posts": 1294,
+     "share": 0.4267810026385224,
+     "predicted": 1.048419994543384,
+     "actual": 0.9791092675217962,
+     "actual_lo": 0.932467079173681,
+     "actual_hi": 1.0272911119418924,
+     "above_usual": 0.38717156105100464,
+     "hit_rate": 0.12364760432766615,
+     "flop_rate": 0.14296754250386398
+    },
+    {
+     "name": "Above average",
+     "lo": 0.15183657971036155,
+     "hi": 0.4712259335057788,
+     "posts": 608,
+     "share": 0.20052770448548812,
+     "predicted": 1.234065242954156,
+     "actual": 1.2547056198003386,
+     "actual_lo": 1.1634579206802138,
+     "actual_hi": 1.355204407337219,
+     "above_usual": 0.5904605263157895,
+     "hit_rate": 0.24671052631578946,
+     "flop_rate": 0.10197368421052631
+    },
+    {
+     "name": "High",
+     "lo": 0.4712259335057788,
+     "hi": null,
+     "posts": 348,
+     "share": 0.11477572559366754,
+     "predicted": 1.5676537527480725,
+     "actual": 1.6573539258340029,
+     "actual_lo": 1.4518856499914,
+     "actual_hi": 1.8990086535600756,
+     "above_usual": 0.7040229885057471,
+     "hit_rate": 0.3850574712643678,
+     "flop_rate": 0.0603448275862069
+    }
+   ],
+   "pair_gap": [
+    {
+     "lo": 0.0,
+     "hi": 0.1,
+     "pairs": 7576,
+     "share": 0.27525069030664145,
+     "accuracy": 0.5087117212249208
+    },
+    {
+     "lo": 0.1,
+     "hi": 0.25,
+     "pairs": 7413,
+     "share": 0.26932858596134285,
+     "accuracy": 0.5526777283151221
+    },
+    {
+     "lo": 0.25,
+     "hi": 0.5,
+     "pairs": 6854,
+     "share": 0.24901903793053334,
+     "accuracy": 0.6278085789320105
+    },
+    {
+     "lo": 0.5,
+     "hi": 0.8,
+     "pairs": 3723,
+     "share": 0.13526376980090102,
+     "accuracy": 0.7507386516250336
+    },
+    {
+     "lo": 0.8,
+     "hi": 1.2,
+     "pairs": 1589,
+     "share": 0.05773143438453713,
+     "accuracy": 0.8483322844556325
+    },
+    {
+     "lo": 1.2,
+     "hi": null,
+     "pairs": 369,
+     "share": 0.013406481616044179,
+     "accuracy": 0.9132791327913279
+    }
+   ]
+  },
+  "64": {
+   "metrics": {
+    "questions": 64,
+    "jev_questions": 57,
+    "cv_pairwise": 0.6073,
+    "shrink": 0.9511,
+    "test_pairwise": 0.616,
+    "test_pairwise_ci95": [
+     0.5939,
+     0.6389
+    ],
+    "test_calibration_slope": 1.021,
+    "test_calibration_slope_ci95": [
+     0.875,
+     1.167
+    ],
+    "pooled_calibration": {
+     "a": 0.0649,
+     "b": 0.5051
+    },
+    "max_gap_seen": 1.85,
+    "vs_full": {
+     "mean": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    }
+   },
+   "bands": [
+    {
+     "name": "Low",
+     "lo": null,
+     "hi": -0.41703532356453976,
+     "posts": 252,
+     "share": 0.08311345646437995,
+     "predicted": 0.8170948481688423,
+     "actual": 0.8357261477062041,
+     "actual_lo": 0.747711983761406,
+     "actual_hi": 0.9121898608482403,
+     "above_usual": 0.28174603174603174,
+     "hit_rate": 0.07142857142857142,
+     "flop_rate": 0.1626984126984127
+    },
+    {
+     "name": "Below average",
+     "lo": -0.41703532356453976,
+     "hi": -0.20966324422797974,
+     "posts": 538,
+     "share": 0.1774406332453826,
+     "predicted": 0.9163271934703467,
+     "actual": 0.8905963897394537,
+     "actual_lo": 0.8243577301023775,
+     "actual_hi": 0.9716554547057769,
+     "above_usual": 0.3754646840148699,
+     "hit_rate": 0.09479553903345725,
+     "flop_rate": 0.19330855018587362
+    },
+    {
+     "name": "Average",
+     "lo": -0.20966324422797974,
+     "hi": 0.14778329934528434,
+     "posts": 1276,
+     "share": 0.420844327176781,
+     "predicted": 1.046184242448739,
+     "actual": 0.9816958364013912,
+     "actual_lo": 0.9347876047392939,
+     "actual_hi": 1.0286699419605692,
+     "above_usual": 0.39106583072100315,
+     "hit_rate": 0.1238244514106583,
+     "flop_rate": 0.13949843260188088
+    },
+    {
+     "name": "Above average",
+     "lo": 0.14778329934528434,
+     "hi": 0.4723465688017496,
+     "posts": 621,
+     "share": 0.20481530343007914,
+     "predicted": 1.2303531343685083,
+     "actual": 1.247388648463805,
+     "actual_lo": 1.1641613881439623,
+     "actual_hi": 1.34204033683522,
+     "above_usual": 0.5797101449275363,
+     "hit_rate": 0.24476650563607086,
+     "flop_rate": 0.10144927536231885
+    },
+    {
+     "name": "High",
+     "lo": 0.4723465688017496,
+     "hi": null,
+     "posts": 345,
+     "share": 0.1137862796833773,
+     "predicted": 1.5613437748962966,
+     "actual": 1.657861589136569,
+     "actual_lo": 1.4544124052461413,
+     "actual_hi": 1.9127115158294028,
+     "above_usual": 0.7072463768115942,
+     "hit_rate": 0.3855072463768116,
+     "flop_rate": 0.06086956521739131
+    }
+   ],
+   "pair_gap": [
+    {
+     "lo": 0.0,
+     "hi": 0.1,
+     "pairs": 7551,
+     "share": 0.2743423920941724,
+     "accuracy": 0.5151635544960932
+    },
+    {
+     "lo": 0.1,
+     "hi": 0.25,
+     "pairs": 7427,
+     "share": 0.2698372329603255,
+     "accuracy": 0.5537902248552579
+    },
+    {
+     "lo": 0.25,
+     "hi": 0.5,
+     "pairs": 6893,
+     "share": 0.2504359831419852,
+     "accuracy": 0.6358624691716234
+    },
+    {
+     "lo": 0.5,
+     "hi": 0.8,
+     "pairs": 3705,
+     "share": 0.13460979508792326,
+     "accuracy": 0.7417004048582996
+    },
+    {
+     "lo": 0.8,
+     "hi": 1.2,
+     "pairs": 1598,
+     "share": 0.05805842174102601,
+     "accuracy": 0.8504380475594493
+    },
+    {
+     "lo": 1.2,
+     "hi": null,
+     "pairs": 350,
+     "share": 0.01271617497456765,
+     "accuracy": 0.9114285714285715
+    }
+   ]
+  }
+ }
 }

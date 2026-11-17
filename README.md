@@ -47,8 +47,8 @@ linkedin-analysis/
 │   ├── discover_features.py # writes data/processed/features/feature_bank.json
 │   ├── judge_features.py    # writes data/processed/judgments*/features.parquet
 │   └── train_models.py      # writes data/processed/models/
-├── app/dashboard.py         # Streamlit: evaluate a post (scorecard), what works, evidence, pipeline
-├── app/insights.py          # the "What works" and "Evidence" tabs
+├── app/dashboard.py         # Streamlit: evaluate a post (scorecard), scorecard weights, research findings, pipeline
+├── app/insights.py          # the "Scorecard" and "Research findings" tabs
 ├── research/                # auto-research: tests, scorecard, REPORT.md (see research/README.md)
 ├── tests/                   # pytest tests (uv run pytest)
 └── docs/
@@ -72,8 +72,8 @@ linkedin-analysis/
 | 7. Dashboard | done | `uv run streamlit run app/dashboard.py` | http://localhost:8501 |
 
 **What content works, with the evidence, and how the dashboard scores a draft: [research/REPORT.md](research/REPORT.md).**
-The dashboard's Evaluate tab now uses the research scorecard (same accuracy as the theme model, 61.6% vs 61.3%,
-with one signed weight per tested property and edit-level suggestions); the theme model is kept as a second opinion.
+The dashboard's Evaluate tab uses the research scorecard: pick 10, 20, 40 or all 64 questions (held-out accuracy 59.5%,
+60.9%, 61.4%, 61.6%; the theme model got 61.3%) and see each question's weight and its contribution to the post's score.
 
 Theme-model results are in [docs/models.md](docs/models.md). The models use content
 features only. On all 165 held-out authors the theme model ranks same-author

@@ -39,7 +39,7 @@ the same author. It is not proof that adding it to any post will cause more reac
 | 8. Comments, reposts, 2× hits and flops for every property | `outcomes.py` | $0 |
 | 9. Length curve, wear-off, combinations, variety; kinds of post and levers inside each | `shape.py`, `archetypes.py` | $0 |
 | 10. Score the 150 generation authors on the scorecard's 26 new questions | `score.py --sets generate` | $0.53 |
-| 11. Scorecard: one signed weight per property (grouped into drivers in `drivers.json`), calibrated, tested once; writes the dashboard bundle | `scorecard.py` | $0 |
+| 11. Scorecards: one signed weight per question (labels and directions in `drivers.json`), at 10, 20, 40 and the full 64 questions, calibrated, each tested once; writes the dashboard bundle | `scorecard.py` | $0 |
 
 Author sets are disjoint and fixed (seeded, `data/processed/research/authors.json`). Test authors are
 never shown to DeepSeek and never used to choose anything. Every paid run is logged in

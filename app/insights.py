@@ -48,7 +48,43 @@ def load() -> dict:
         "length": pd.read_csv(RESULTS / "shape_length.csv"),
         "combos": pd.read_csv(RESULTS / "shape_combos.csv"),
         "variety": json.loads((RESULTS / "shape_variety.json").read_text()),
+        "models": json.loads((RESULTS / "blend.json").read_text()) if (RESULTS / "blend.json").exists() else None,
     }
+
+
+MODELS = [  # rows of the model comparison: (key in blend.json, shown name, what it reads, readable)
+    ("Scorecard (64 questions)", "Scorecard (64 questions)", "Jev's answers + length", "yes, one weight per question"),
+    ("Ridge, all 173 Jev questions", "Ridge regression", "Jev's answers to 173 questions", "no"),
+    ("Gradient boosting, all 173 Jev questions", "Gradient boosting", "Jev's answers to 173 questions", "no"),
+    ("TF-IDF words + ridge", "TF-IDF + ridge", "the words themselves", "no"),
+    ("Scorecard + TF-IDF (stacked)", "Scorecard + TF-IDF", "both", "partly"),
+    ("All six models (stacked)", "All models combined", "everything above", "no"),
+]
+
+
+def models_section(res: dict) -> None:
+    """Scorecard vs standard ML models and blends, on the same held-out authors (research/blend.py)."""
+    st.markdown("#### How the scorecard compares with standard ML models")
+    rows = []
+    for key, name, reads, readable in MODELS:
+        r = res[key]
+        d = r["vs_scorecard"]
+        rows.append({"model": name, "held-out accuracy": 100 * r["test_pairwise"],
+                     "vs scorecard (points)": "—" if d is None else
+                     f"{100 * d['mean']:+.1f} ({100 * d['ci95'][0]:+.1f} to {100 * d['ci95'][1]:+.1f})",
+                     "95% range": f"{r['test_ci95'][0]:.1%} – {r['test_ci95'][1]:.1%}",
+                     "reads": reads, "readable": readable})
+    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True,
+                 column_config={"held-out accuracy": st.column_config.NumberColumn(format="%.1f%%")})
+    st.caption("All fitted on the same 667 train authors and scored once on the same 165 held-out authors. Accuracy: for two "
+               "posts by the same author, how often the higher-scoring one got more reactions (50% = coin flip). vs scorecard: "
+               "paired difference per author, with its 95% range from resampling authors.")
+    st.markdown(
+        "- **The scorecard beats TF-IDF** by 2.0 points (range excludes 0) and gradient boosting by 1.4, and ties ridge, "
+        "while every weight stays readable.\n"
+        "- **Combining adds at most about 1 point.** Scorecard + TF-IDF reached 62.4% (+0.8, range just above 0), but it "
+        "was the best of 10 blends tried; the blend chosen on train authors alone gained only +0.3, within noise. TF-IDF "
+        "helps a little because it is the only model that reads the words rather than Jev's answers.")
 
 
 # ------------------------------------------------------------------ Research findings
@@ -105,6 +141,9 @@ def what_works_tab() -> None:
         "a personal story that also names three or more people gets 2.23×. Mixing a story with a made-up example weakens it.\n"
         f"- **No fatigue, no novelty bonus:** effects do not fade for authors who use them often, and a post unlike the author's "
         f"usual ones does no better ({v['mult']:.2f}× per standard deviation).")
+
+    if d["models"]:
+        models_section(d["models"])
 
     with st.expander(f"Search all {len(eff)} tested properties"):
         q = st.text_input("Search", placeholder="e.g. people, link, question")

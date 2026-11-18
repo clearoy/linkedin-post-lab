@@ -1,0 +1,272 @@
+{
+ "Scorecard + TF-IDF (stacked)": {
+  "cv_pairwise": 0.6112,
+  "test_pairwise": 0.6242,
+  "test_ci95": [
+   0.6025,
+   0.6464
+  ],
+  "vs_scorecard": {
+   "mean": 0.0082,
+   "ci95": [
+    0.0006,
+    0.0166
+   ]
+  },
+  "weights": {
+   "Scorecard (64 questions)": 0.866,
+   "TF-IDF words + ridge": 0.648
+  }
+ },
+ "Scorecard + gradient boosting + TF-IDF (stacked)": {
+  "cv_pairwise": 0.6142,
+  "test_pairwise": 0.6205,
+  "test_ci95": [
+   0.5997,
+   0.6429
+  ],
+  "vs_scorecard": {
+   "mean": 0.0044,
+   "ci95": [
+    -0.0039,
+    0.0133
+   ]
+  },
+  "weights": {
+   "Scorecard (64 questions)": 0.525,
+   "Gradient boosting, all 173 Jev questions": 0.768,
+   "TF-IDF words + ridge": 0.472
+  }
+ },
+ "All six models (equal)": {
+  "cv_pairwise": 0.6095,
+  "test_pairwise": 0.6201,
+  "test_ci95": [
+   0.5991,
+   0.6423
+  ],
+  "vs_scorecard": {
+   "mean": 0.004,
+   "ci95": [
+    -0.0076,
+    0.0176
+   ]
+  },
+  "weights": null
+ },
+ "Scorecard + gradient boosting + TF-IDF (equal)": {
+  "cv_pairwise": 0.6135,
+  "test_pairwise": 0.6191,
+  "test_ci95": [
+   0.5976,
+   0.6415
+  ],
+  "vs_scorecard": {
+   "mean": 0.0031,
+   "ci95": [
+    -0.0072,
+    0.0143
+   ]
+  },
+  "weights": null
+ },
+ "All six models (stacked)": {
+  "cv_pairwise": 0.6158,
+  "test_pairwise": 0.6189,
+  "test_ci95": [
+   0.5978,
+   0.6409
+  ],
+  "vs_scorecard": {
+   "mean": 0.0029,
+   "ci95": [
+    -0.0054,
+    0.0113
+   ]
+  },
+  "weights": {
+   "Scorecard (64 questions)": 0.583,
+   "Ridge, 147 old questions": -0.165,
+   "Ridge, all 173 Jev questions": -0.051,
+   "Gradient boosting, 147 old questions": 0.321,
+   "Gradient boosting, all 173 Jev questions": 0.535,
+   "TF-IDF words + ridge": 0.443
+  }
+ },
+ "Scorecard + TF-IDF (equal)": {
+  "cv_pairwise": 0.6105,
+  "test_pairwise": 0.6186,
+  "test_ci95": [
+   0.5967,
+   0.6417
+  ],
+  "vs_scorecard": {
+   "mean": 0.0026,
+   "ci95": [
+    -0.0094,
+    0.015
+   ]
+  },
+  "weights": null
+ },
+ "Scorecard + ridge (equal)": {
+  "cv_pairwise": 0.6034,
+  "test_pairwise": 0.6163,
+  "test_ci95": [
+   0.5952,
+   0.6383
+  ],
+  "vs_scorecard": {
+   "mean": 0.0003,
+   "ci95": [
+    -0.0071,
+    0.0085
+   ]
+  },
+  "weights": null
+ },
+ "Scorecard (64 questions)": {
+  "cv_pairwise": 0.6073,
+  "test_pairwise": 0.616,
+  "test_ci95": [
+   0.5939,
+   0.6389
+  ],
+  "vs_scorecard": null,
+  "weights": null
+ },
+ "Scorecard + ridge (stacked)": {
+  "cv_pairwise": 0.6063,
+  "test_pairwise": 0.6159,
+  "test_ci95": [
+   0.5943,
+   0.638
+  ],
+  "vs_scorecard": {
+   "mean": -0.0001,
+   "ci95": [
+    -0.0043,
+    0.004
+   ]
+  },
+  "weights": {
+   "Scorecard (64 questions)": 0.788,
+   "Ridge, all 173 Jev questions": 0.413
+  }
+ },
+ "Ridge, 147 old questions": {
+  "cv_pairwise": 0.5929,
+  "test_pairwise": 0.6146,
+  "test_ci95": [
+   0.593,
+   0.6356
+  ],
+  "vs_scorecard": {
+   "mean": -0.0014,
+   "ci95": [
+    -0.0183,
+    0.0176
+   ]
+  },
+  "weights": null
+ },
+ "Ridge, all 173 Jev questions": {
+  "cv_pairwise": 0.597,
+  "test_pairwise": 0.6142,
+  "test_ci95": [
+   0.5931,
+   0.6355
+  ],
+  "vs_scorecard": {
+   "mean": -0.0018,
+   "ci95": [
+    -0.0154,
+    0.013
+   ]
+  },
+  "weights": null
+ },
+ "Scorecard + gradient boosting (equal)": {
+  "cv_pairwise": 0.6085,
+  "test_pairwise": 0.6116,
+  "test_ci95": [
+   0.59,
+   0.634
+  ],
+  "vs_scorecard": {
+   "mean": -0.0045,
+   "ci95": [
+    -0.0135,
+    0.0043
+   ]
+  },
+  "weights": null
+ },
+ "Scorecard + gradient boosting (stacked)": {
+  "cv_pairwise": 0.6083,
+  "test_pairwise": 0.6112,
+  "test_ci95": [
+   0.5893,
+   0.634
+  ],
+  "vs_scorecard": {
+   "mean": -0.0049,
+   "ci95": [
+    -0.0133,
+    0.0035
+   ]
+  },
+  "weights": {
+   "Scorecard (64 questions)": 0.592,
+   "Gradient boosting, all 173 Jev questions": 0.831
+  }
+ },
+ "Gradient boosting, all 173 Jev questions": {
+  "cv_pairwise": 0.6013,
+  "test_pairwise": 0.6019,
+  "test_ci95": [
+   0.581,
+   0.624
+  ],
+  "vs_scorecard": {
+   "mean": -0.0141,
+   "ci95": [
+    -0.0307,
+    0.004
+   ]
+  },
+  "weights": null
+ },
+ "Gradient boosting, 147 old questions": {
+  "cv_pairwise": 0.5965,
+  "test_pairwise": 0.5969,
+  "test_ci95": [
+   0.5774,
+   0.6164
+  ],
+  "vs_scorecard": {
+   "mean": -0.0191,
+   "ci95": [
+    -0.0352,
+    -0.0024
+   ]
+  },
+  "weights": null
+ },
+ "TF-IDF words + ridge": {
+  "cv_pairwise": 0.5868,
+  "test_pairwise": 0.5964,
+  "test_ci95": [
+   0.5769,
+   0.6163
+  ],
+  "vs_scorecard": {
+   "mean": -0.0197,
+   "ci95": [
+    -0.0362,
+    -0.0024
+   ]
+  },
+  "weights": null
+ }
+}

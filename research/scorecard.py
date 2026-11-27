@@ -12,8 +12,13 @@ subtract (bounded least squares, small ridge penalty). Length enters as log(min(
             + length weight * (log(min(words, cap)) - average)
 
 Sizes. The full fit leaves some properties at exactly 0 (they add nothing beyond the others);
-the rest form the full scorecard. Smaller scorecards keep the questions that move the full
-score most (|weight| x spread of the answers on train posts) and are refitted on those alone.
+the rest form the full scorecard. The 20 and 40-question scorecards keep the questions that move
+the full score most (|weight| x spread of the answers on train posts) and are refitted on those
+alone. The 5 and 10-question scorecards are the best combination found by search on train authors,
+using only common questions (present in at least 10% of train posts, so the score applies to most
+posts rather than resting on a rare one): greedy forward selection by out-of-fold pairwise accuracy,
+then swaps (replace one question with one outside the set) while any swap raises it. The ranked 10
+is also fitted, for comparison only.
 
 Everything is chosen on train authors: the ridge strength and the length cap by 5-fold author
 CV, the ranking of questions, and for each size a shrink factor so that out-of-fold predictions
@@ -51,7 +56,9 @@ HERE = Path(__file__).resolve().parent
 DIRS = BASE_DIRS + [RESEARCH_DATA / "judgments_r1_generate", RESEARCH_DATA / "judgments_r2_generate"]
 CAPS = [None, 100, 120, 160, 200]
 RIDGE = [0.0, 10.0, 30.0]
-SMALL_SIZES = [10, 20, 40]  # plus the full scorecard (every question with a non-zero weight)
+SEARCHED_SIZES = [5, 10]  # best combination found by search on train authors
+COMMON_SHARE = 0.10  # the searched sizes use only questions present (P(yes) >= 0.5) in at least this share of train posts
+SMALL_SIZES = [20, 40]  # top questions of the full fit, refitted; plus the full scorecard (every non-zero weight)
 BAND_QUANTILES = [0.10, 0.30, 0.70, 0.90]
 BAND_NAMES = ["Low", "Below average", "Average", "Above average", "High"]
 GAP_EDGES = [0.1, 0.25, 0.5, 0.8, 1.2]
@@ -78,6 +85,39 @@ def oof_predictions(X, y, authors, folds, sign, lam) -> np.ndarray:
         b = bounded_fit(Xd[fit], yd[fit], sign, lam)
         out[val] = (X[val] - X[fit].mean(axis=0)) @ b
     return out
+
+
+def search(k, tr, ids, sign, cap, lam, start=None) -> list[int]:
+    """Best k questions by out-of-fold pairwise accuracy on train authors: greedy forward, then best swaps."""
+    A, L = tr[ids].to_numpy(float), length_col(tr["words"], cap)
+    y, au, folds = tr["lift"].to_numpy(), tr["author"].to_numpy(), tr["fold"].to_numpy()
+    pairs = Pairs(y, au)
+
+    def cv(cols):
+        s = np.r_[sign[cols], 1.0]
+        return float(pairs.per_author(oof_predictions(np.column_stack([A[:, cols], L]), y, au, folds, s, lam)).mean())
+
+    chosen = list(start or [])
+    while len(chosen) < k:
+        c = max((c for c in range(len(ids)) if c not in chosen), key=lambda c: cv(chosen + [c]))
+        chosen.append(c)
+    cur = cv(chosen)
+    print(f"   forward {k}: cv {cur:.4f}", flush=True)
+    for _ in range(10):  # swap passes: take the best improving swap, stop when none helps
+        best = (cur, None)
+        for pos in range(k):
+            for c in range(len(ids)):
+                if c in chosen:
+                    continue
+                v = cv(chosen[:pos] + [c] + chosen[pos + 1:])
+                if v > best[0] + 1e-4:
+                    best = (v, (pos, c))
+        if best[1] is None:
+            break
+        pos, c = best[1]
+        print(f"   swap {ids[chosen[pos]]} -> {ids[c]}: cv {best[0]:.4f}", flush=True)
+        chosen[pos], cur = c, best[0]
+    return chosen
 
 
 def fit_size(cols, tr, te, ids, sign, cap, lam) -> dict:
@@ -173,13 +213,25 @@ def main() -> None:
     order = np.argsort(-importance)
     n_full = int((np.abs(b_all[:-1]) > 1e-6).sum())
     sizes = [k for k in SMALL_SIZES if k < n_full] + [n_full]
-    print(f"{n_full} of {len(ids)} properties have a non-zero weight; sizes {sizes}")
+    print(f"{n_full} of {len(ids)} properties have a non-zero weight; sizes {SEARCHED_SIZES + sizes}")
 
-    # 3. fit and test each size. If refitting a small set leaves a question at exactly 0 (the others cover it),
-    # swap it for the next question in the ranking, so every size has that many questions that count.
-    fits = {}
-    for k in sizes:
-        cols, nxt = list(order[:k]), k
+    # 3. fit and test each size. Searched sizes: the best combination on train authors (the 10 starts from the best 5).
+    # Ranked sizes: if refitting a small set leaves a question at exactly 0 (the others cover it), swap it for the
+    # next question in the ranking, so every size has that many questions that count.
+    share = (tr[ids] >= 0.5).mean().to_numpy()
+    common = [j for j in range(len(ids)) if share[j] >= COMMON_SHARE]
+    print(f"{len(common)} of {len(ids)} properties are in at least {COMMON_SHARE:.0%} of train posts (searched sizes use only these)")
+    fits, found = {}, []
+    for k in SEARCHED_SIZES:
+        local = search(k, tr, [ids[j] for j in common], sign[common], cap, lam,
+                       start=[common.index(j) for j in found])
+        found = [common[j] for j in local]
+        fits[k] = fit_size(found, tr, te, ids, sign, cap, lam)
+        fits[k]["metrics"]["selection"] = f"best combination of common questions (in at least {COMMON_SHARE:.0%} of train posts) searched on train authors"
+        fits[k]["metrics"]["common_share"] = COMMON_SHARE
+    for k in sizes + ["10 ranked"]:
+        k_n = 10 if k == "10 ranked" else k
+        cols, nxt = list(order[:k_n]), k_n
         while True:
             f = fit_size(cols, tr, te, ids, sign, cap, lam)
             zero = [c for c, w in zip(cols, f["beta"][:-1]) if abs(w) < 1e-6]
@@ -187,13 +239,20 @@ def main() -> None:
                 break
             cols = [c for c in cols if c not in zero] + list(order[nxt:nxt + len(zero)])
             nxt += len(zero)
+        f["metrics"]["selection"] = "all non-zero weights" if k == n_full else "top questions of the full fit, refitted"
         fits[k] = f
     ref = fits[n_full]["per_author"]
     for k, f in fits.items():
         f["metrics"]["vs_full"] = bootstrap_ci(f["per_author"], ref)
         m = f["metrics"]
-        print(f"size {k:>3}: jev {m['jev_questions']:>3}  cv {m['cv_pairwise']:.4f}  test {m['test_pairwise']:.4f} "
+        print(f"size {k!s:>9}: jev {m['jev_questions']:>3}  cv {m['cv_pairwise']:.4f}  test {m['test_pairwise']:.4f} "
               f"{m['test_pairwise_ci95']}  vs full {m['vs_full']['mean']:+.4f} {m['vs_full']['ci95']}  slope {m['test_calibration_slope']}")
+        if k in SEARCHED_SIZES:
+            print("           " + ", ".join(f["names"]))
+    ranked10 = fits.pop("10 ranked")
+    fits[10]["metrics"]["vs_ranked_10"] = bootstrap_ci(fits[10]["per_author"], ranked10["per_author"])
+    fits[10]["metrics"]["ranked_10_test_pairwise"] = ranked10["metrics"]["test_pairwise"]
+    fits = dict(sorted(fits.items()))
 
     # 4. outputs
     eff = pd.concat([pd.read_csv(RESULTS / f"effects_{n}.csv") for n in ["existing", "r1", "r2"]]).drop_duplicates("id").set_index("id")
@@ -202,7 +261,8 @@ def main() -> None:
         bank.update({f["id"]: f for f in json.loads((RESEARCH_DATA / f"bank_round{r}.json").read_text())["features"]})
     question = {i: (bank[i]["question"] if i in bank else labels[i]) for i in ids}
 
-    rank = {ids[k]: n + 1 for n, k in enumerate(order) if np.abs(b_all[k]) > 1e-6}
+    used = {n for f in fits.values() for n in f["names"]}
+    rank = {ids[k]: n + 1 for n, k in enumerate(order) if np.abs(b_all[k]) > 1e-6 or ids[k] in used}
     rows = []
     for i in sorted(rank, key=rank.get):
         e = eff.loc[i]
@@ -226,7 +286,7 @@ def main() -> None:
              "sizes": {str(k): {"metrics": f["metrics"], "bands": f["bands"], "pair_gap": f["pair_gap"]} for k, f in fits.items()}}
     (RESULTS / "scorecard.json").write_text(json.dumps(stats, indent=1))
 
-    need = [n for n in fits[n_full]["names"] if not n.startswith("text.")]
+    need = [n for n in ids if n in used and not n.startswith("text.")]
     features = [{k: bank[q][k] for k in ("id", "question", "definition", "yes_example", "no_example")} for q in need]
     bundle = {"common": common, "default": str(n_full), "sizes": {str(k): size_bundle(f) for k, f in fits.items()},
               "features": features}

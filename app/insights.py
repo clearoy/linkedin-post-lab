@@ -91,9 +91,9 @@ def models_section(res: dict) -> None:
 
 
 def effect_table(t: pd.DataFrame, first: str) -> None:
-    t = t.rename(columns={"label": first, "mult": "reactions vs usual", "test_mult": "held-out authors", "share": "share of posts"})
-    st.dataframe(t[[first, "reactions vs usual", "held-out authors", "share of posts"]], hide_index=True, use_container_width=True,
-                 column_config={"reactions vs usual": st.column_config.NumberColumn(format="%.2f×"),
+    t = t.rename(columns={"label": first, "train_mult": "train authors", "test_mult": "held-out authors", "share": "share of posts"})
+    st.dataframe(t[[first, "train authors", "held-out authors", "share of posts"]], hide_index=True, use_container_width=True,
+                 column_config={"train authors": st.column_config.NumberColumn(format="%.2f×"),
                                 "held-out authors": st.column_config.NumberColumn(format="%.2f×"),
                                 "share of posts": st.column_config.NumberColumn(format="percent")})
 
@@ -101,7 +101,7 @@ def effect_table(t: pd.DataFrame, first: str) -> None:
 def what_works_tab() -> None:
     d = load()
     eff = d["effects"]
-    conf = eff[eff["confirmed"]].sort_values("mult", ascending=False).drop_duplicates("label")
+    conf = eff[eff["confirmed"]].sort_values("train_mult", ascending=False).drop_duplicates("label")
     st.subheader("Research findings")
     st.markdown(
         f"**{len(eff)}** properties of the post text were tested and **{int(eff['confirmed'].sum())}** held up: significant on 667 "
@@ -111,19 +111,20 @@ def what_works_tab() -> None:
             "happened. Generic advice, frameworks, links and engagement tricks do not help, and several hurt.")
 
     st.markdown("#### What goes with more reactions")
-    effect_table(conf[conf["mult"] > 1].head(12), "property")
+    effect_table(conf[conf["train_mult"] > 1].head(12), "property")
     st.markdown("#### What goes with fewer reactions")
-    effect_table(conf[conf["mult"] < 1].sort_values("mult").head(10), "property")
-    st.caption("1.50× = 50% more reactions than the same author's usual post. Held-out authors: the 165 authors never used to "
-               "choose anything.")
+    effect_table(conf[conf["train_mult"] < 1].sort_values("train_mult").head(10), "property")
+    st.caption("Reactions compared with the same author's usual post: 1.50× = 50% more. Train authors: the 667 authors the "
+               "properties were found on. Held-out authors: the 165 authors never used to choose anything, the independent "
+               "check. A property counts as present when Jev's P(yes) is 0.5 or more.")
 
     st.markdown("#### Popular advice that did not hold up")
     e = eff.set_index("id")
-    myths = pd.DataFrame([{"label": name, "mult": e.loc[i, "mult"], "test_mult": e.loc[i, "test_mult"], "share": e.loc[i, "share"]}
+    myths = pd.DataFrame([{"label": name, "train_mult": e.loc[i, "train_mult"], "test_mult": e.loc[i, "test_mult"], "share": e.loc[i, "share"]}
                           for i, name in MYTHS.items() if i in e.index])
     effect_table(myths, "advice")
     st.caption("None of these was confirmed: either no clear effect on train authors, or it did not repeat on held-out authors "
-               "(hashtags: 1.25× on train, only 1.09× held-out).")
+               "(hashtags: 1.29× on train, only 1.09× held-out).")
 
     st.markdown("#### Other findings")
     ln = d["length"].set_index(["outcome", "words"])["mult"]
@@ -148,11 +149,11 @@ def what_works_tab() -> None:
     with st.expander(f"Search all {len(eff)} tested properties"):
         q = st.text_input("Search", placeholder="e.g. people, link, question")
         t = eff if not q else eff[eff["label"].str.contains(q, case=False) | eff["question"].str.contains(q, case=False)]
-        t = t.sort_values("mult", ascending=False).rename(columns={"label": "property", "mult": "reactions vs usual",
+        t = t.sort_values("train_mult", ascending=False).rename(columns={"label": "property", "train_mult": "train authors",
                                                                     "test_mult": "held-out authors", "share": "share of posts"})
-        st.dataframe(t[["property", "reactions vs usual", "held-out authors", "share of posts", "status"]], hide_index=True,
+        st.dataframe(t[["property", "train authors", "held-out authors", "share of posts", "status"]], hide_index=True,
                      use_container_width=True, height=400, column_config={
-                         "reactions vs usual": st.column_config.NumberColumn(format="%.2f×"),
+                         "train authors": st.column_config.NumberColumn(format="%.2f×"),
                          "held-out authors": st.column_config.NumberColumn(format="%.2f×"),
                          "share of posts": st.column_config.NumberColumn(format="percent")})
     st.caption("Full write-up: research/REPORT.md.")
@@ -168,8 +169,9 @@ def scorecard_tab(b: dict) -> None:
     st.markdown(
         f"Each scorecard is one weight per yes/no question plus length, added up. Weights were fitted on "
         f"{common['train_authors']} train authors, comparing each author's posts only with their own; a question that helped there can "
-        f"only add, one that hurt can only subtract. Smaller scorecards keep the questions that move the full score most and are "
-        f"refitted on those alone. Accuracy is measured once, on {common['test_authors']} held-out authors "
+        f"only add, one that hurt can only subtract. The 5 and 10-question scorecards are the best "
+        f"combinations of common questions (each in at least 10% of train posts) found by searching on train authors (add the question that helps most, then swap questions while it "
+        f"improves); 20 and 40 keep the questions that move the full score most. Each is refitted on its own questions. Accuracy is measured once, on {common['test_authors']} held-out authors "
         f"({common['test_posts']:,} posts) never used to fit or choose anything.")
     sizes = sorted(b["sizes"], key=int)
     rows = []
@@ -193,7 +195,7 @@ def scorecard_tab(b: dict) -> None:
     w = pd.DataFrame([{"Question": i["label"] + (" (text check)" if i["id"].startswith("text.") else ""), "Weight": i["weight"],
                        "Jev's exact question": "Counted from the text" if i["id"].startswith("text.") else i["question"]}
                       for i in c["items"]]
-                     + [{"Question": f"Length (per doubling of words, counted up to {ln['cap']})", "Weight": ln["weight"] * np.log(2),
+                     + [{"Question": f"Post length, not a question (per doubling of words, up to {ln['cap']})", "Weight": ln["weight"] * np.log(2),
                          "Jev's exact question": "Counted from the text"}])
     w = w.sort_values("Weight", ascending=False)
     st.dataframe(w.style.format({"Weight": "{:+.2f}"}).map(lambda v: f"color: {GREEN if v > 0 else RED}", subset=["Weight"]),

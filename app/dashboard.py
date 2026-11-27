@@ -50,6 +50,11 @@ def card() -> dict:
     return _card(scorecard.BUNDLE.stat().st_mtime)
 
 
+def usd(x: float) -> str:
+    """Dollars with enough decimals that a tiny cost does not show as $0.0000."""
+    return "$0" if x == 0 else f"${x:.4f}" if x >= 0.001 else f"${x:.5f}"
+
+
 def size_name(b: dict, size: str) -> str:
     return f"{size} questions (full)" if size == b["default"] else f"{size} questions"
 
@@ -101,9 +106,11 @@ def evaluate_tab() -> None:
     c = b["sizes"][size]
     m = c["metrics"]
     feats = scorecard.jev_features(b, size)
-    st.caption(f"{m['jev_questions']} Jev questions + {m['questions'] - m['jev_questions']} text checks + length · "
+    n_text = m["questions"] - m["jev_questions"]
+    parts = f"{m['jev_questions']} Jev questions" + (f" + {n_text} text check{'s' if n_text > 1 else ''}" if n_text else "")
+    st.caption(f"{parts}, plus a post-length row (so the table has {m['questions'] + 1} rows) · "
                f"held-out accuracy **{m['test_pairwise']:.1%}** (50% = coin flip) · about "
-               f"${len(feats) * judge.USD_PER_QUESTION:.4f} per draft. Text only: attached media is not used.")
+               f"{usd(len(feats) * judge.USD_PER_QUESTION)} per draft. Text only: attached media is not used.")
 
     compare = st.toggle("Compare two drafts")
     n = 2 if compare else 1
@@ -126,7 +133,7 @@ def evaluate_tab() -> None:
         st.info(f"The {size_name(b, size)} scorecard needs answers Jev has not given yet. Click **Evaluate**.")
         return
     results = [scorecard.score(c, scorecard.post_values(c, a, t)) for t, a in zip(ev, answers)]
-    st.caption(f"Jev spend this session: ${st.session_state.get('spent', 0):.4f}.")
+    st.caption(f"Jev spend this session: {usd(st.session_state.get('spent', 0))}.")
     st.divider()
     if compare:
         compare_report(c, *results)
@@ -240,7 +247,7 @@ def pipeline_tab() -> None:
         ("6. Test", "Keep a question only if it matters on train authors after correcting for many tests; "
          "'confirmed' if it also holds on test authors.", f"{len(eff)} tested, {passed} kept, {int(eff['confirmed'].sum())} confirmed"),
         ("7. Scorecard", "One weight per kept question plus length, fitted on train authors; direction fixed in advance. "
-         "Smaller versions keep the questions that matter most.", f"sizes {sizes}; held-out accuracy {full.get('test_pairwise', 0):.1%}"),
+         "The 5 and 10-question versions are the best combinations of common questions (in at least 10% of posts) found by search on train authors; 20 and 40 keep the questions that matter most.", f"sizes {sizes}; held-out accuracy {full.get('test_pairwise', 0):.1%}"),
         ("8. Evaluate", "For a new post, Jev answers the chosen scorecard's questions and the score is the weighted sum.",
          "about $0.0004 per draft"),
     ]

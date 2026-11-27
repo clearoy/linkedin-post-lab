@@ -8,7 +8,7 @@
 
 **Deliverables.**
 - This report.
-- The dashboard (`uv run streamlit run app/dashboard.py`) with four tabs: **Evaluate a post** (choose a 10, 20, 40 or full 64-question scorecard; see each question's weight and contribution), **Scorecard** (accuracy of each size and every weight), **Research findings** (the main results in a few tables), **Pipeline** (the steps from data to scorecard).
+- The dashboard (`uv run streamlit run app/dashboard.py`) with four tabs: **Evaluate a post** (choose a 5, 10, 20, 40 or full 64-question scorecard; see each question's weight and contribution), **Scorecard** (accuracy of each size and every weight), **Research findings** (the main results in a few tables), **Pipeline** (the steps from data to scorecard).
 - The first-pass write-up with every single-property table: [FINDINGS.md](FINDINGS.md).
 
 ---
@@ -54,7 +54,7 @@
    - AI topics
    - short first lines, short paragraphs, bullets
 
-   Hashtags looked strong on train authors (1.25×) but did not hold up on held-out authors (1.09×).
+   Hashtags looked strong on train authors (1.29×) but did not hold up on held-out authors (1.09×).
 8. **No sign of fatigue or a novelty bonus.**
    - Effects do not wear off for authors who use them often (0 of 71 properties).
    - A post unlike the author's usual posts does neither better nor worse (0.997× per standard deviation).
@@ -207,7 +207,7 @@ The per-type tables are in `research/results/archetype_levers.csv`.
 - **Length** enters as log(min(words, 120)).
 - **Chosen on train authors only.** The length cap, the ridge strength and a shrink factor (0.95, so out-of-fold predictions are calibrated) were all set on train. The grouping into drivers used meaning only, not test results.
 - **Training data.** It trains on all 667 train authors after the 150 generation authors were scored on the 26 new questions it uses ($0.53 of Jev).
-- **Smaller sizes.** The 10, 20 and 40-question scorecards keep the questions that move the full score most (|weight| × spread of the answers on train posts) and are refitted on those alone, each with its own shrink factor and calibration. A question whose refitted weight is exactly 0 is swapped for the next one, so every question counts.
+- **Smaller sizes.** The 5 and 10-question scorecards are the best combinations found by search on train authors, using only common questions (present in at least 10% of train posts; 77 of 106), so the score rests on things most posts can have rather than on a rare one such as a career milestone (2% of posts): add the question that most raises out-of-fold pairwise accuracy, one at a time, then swap a chosen question for an unchosen one while any swap raises it (the 10 starts from the best 5). The 20 and 40-question scorecards keep the questions that move the full score most (|weight| × spread of the answers on train posts); a question whose refitted weight is exactly 0 is swapped for the next one. Every size is refitted on its own questions, with its own shrink factor and calibration.
 - **Testing.** The 165 held-out authors were used once per size.
 
 **Accuracy on held-out authors** (3,032 posts):
@@ -248,12 +248,17 @@ Every content-only model lands between 0.59 and 0.62. Text-only yes/no questions
 
 | Scorecard | Jev questions | Text checks | Pairwise accuracy (95% CI) | vs full (points, 95% CI) | Same-author calibration slope |
 |---|---|---|---|---|---|
-| 10 questions | 9 | 1 | 59.5% [57.1, 61.8] | −2.1 [−3.5, −0.7] | 0.96 |
+| 5 questions (searched, common) | 5 | 0 | 61.0% [58.9, 63.1] | −0.6 [−2.1, +0.8] | 1.04 |
+| 10 questions (searched, common) | 9 | 1 | 61.9% [59.8, 64.1] | +0.3 [−1.2, +1.7] | 1.09 |
 | 20 questions | 18 | 2 | 60.9% [58.6, 63.4] | −0.7 [−1.6, +0.2] | 0.99 |
 | 40 questions | 36 | 4 | 61.4% [59.2, 63.6] | −0.2 [−0.6, +0.1] | 1.01 |
 | 64 questions (full) | 57 | 7 | 61.6% [59.4, 63.9] | — | 1.02 |
 
-20–40 questions keep almost all the accuracy; 10 lose about 2 points. Weights in a small scorecard are larger than in the full one, because each kept question also stands in for related ones that were dropped (the milestone question is +0.47 in the full scorecard and +0.81 in the 10-question one).
+Searching for the best combination matters more than size. The 10 questions ranked by the full fit scored 59.5% (−2.1 points vs full, range excludes 0); the searched 10 score 61.9%, +2.4 points over the ranked 10 [+0.7, +4.0]. Even 5 searched questions (61.0%) are within noise of the full scorecard. They are: tells one person's story (+0.38), names at least two people (+0.31), announces an achievement or recognition (+0.27), mentions a specific job title (+0.10) and points out a problem, gap or risk (−0.30), plus length (+0.16 per doubling). The 10 add a specific experience of your own, what you are excited about next, a made-up example (−), a step-by-step framework (−) and a link (−, a text check).
+
+Restricting the search to common questions costs nothing. Searching over all 106 questions picked rarer, stronger ones (own career milestone, 2% of posts; names three or more people, 9%) and scored 60.7% and 60.9% on held-out authors; the common-question sets replace them with broader versions of the same ideas (achievement or recognition, at least two people). Their held-out edge (+0.3 and +1.0 points) is within noise, and their train accuracy was slightly lower, so the claim is "no loss", not "better". Stricter cut-offs do lose: with only questions in at least 20% of posts, the best 5 scored 59.7% (−1.0 points vs the all-question 5, range excludes 0), because "names people" can then only enter as "names at least one person". The searched sets were chosen on train authors only and tested once, but the search tried many combinations, so their train accuracy is optimistic; the held-out numbers above are not.
+
+Weights in a small scorecard are larger than in the full one, because each kept question also stands in for related ones that were dropped (telling one person's story is +0.38 in the 5-question scorecard and +0.07 in the full one, where related story and people questions share its weight).
 
 **What the Evaluate tab shows for a draft.** Jev answers only the chosen scorecard's questions (up to 57, about $0.0004 per draft; switching to a smaller size re-scores without asking again).
 - **Headline:** the score, the expected reactions vs the author's usual post, and the score band with what held-out posts in it got.
@@ -304,7 +309,7 @@ uv run python research/shape.py         # length curve, wear-off, combinations, 
 uv run python research/archetypes.py    # kinds of post and levers inside each
 uv run python research/score.py --round 1 --sets generate --ids-from <r1 ids> --name r1_generate  # $0.32
 uv run python research/score.py --round 2 --sets generate --ids-from <r2 ids> --name r2_generate  # $0.21
-uv run python research/scorecard.py     # fit, calibrate, test 10/20/40/64-question scorecards; writes the dashboard bundle
+uv run python research/scorecard.py     # fit, calibrate, test 5/10/20/40/64-question scorecards (5 and 10 searched over common questions); writes the dashboard bundle
 uv run streamlit run app/dashboard.py
 ```
 

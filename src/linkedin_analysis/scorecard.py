@@ -70,7 +70,7 @@ def score(card: dict, values: dict[str, float]) -> dict:
                      "weight": i["weight"], "mean": i["mean"], "contribution": i["weight"] * (v - i["mean"])})
     ln = card["length"]
     words = int(values["words"])
-    rows.append({"id": "length", "label": f"Length (per doubling of words, counted up to {ln['cap']})",
+    rows.append({"id": "length", "label": f"Post length, not a question (per doubling of words, up to {ln['cap']})",
                  "question": "Number of words", "answer": float(words), "weight": ln["weight"] * math.log(2),
                  "mean": math.exp(ln["mean"]), "contribution": ln["weight"] * (length_value(words, ln["cap"]) - ln["mean"])})
     total = sum(r["contribution"] for r in rows)

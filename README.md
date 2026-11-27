@@ -72,8 +72,8 @@ linkedin-analysis/
 | 7. Dashboard | done | `uv run streamlit run app/dashboard.py` | http://localhost:8501 |
 
 **What content works, with the evidence, and how the dashboard scores a draft: [research/REPORT.md](research/REPORT.md).**
-The dashboard's Evaluate tab uses the research scorecard: pick 10, 20, 40 or all 64 questions (held-out accuracy 59.5%,
-60.9%, 61.4%, 61.6%; the theme model got 61.3%) and see each question's weight and its contribution to the post's score.
+The dashboard's Evaluate tab uses the research scorecard: pick 5, 10, 20, 40 or all 64 questions (held-out accuracy 61.0%,
+61.9%, 60.9%, 61.4%, 61.6%; the 5 and 10 are the best combinations of common questions, in at least 10% of posts, searched on train; the theme model got 61.3%) and see each question's weight and its contribution to the post's score.
 
 Theme-model results are in [docs/models.md](docs/models.md). The models use content
 features only. On all 165 held-out authors the theme model ranks same-author
